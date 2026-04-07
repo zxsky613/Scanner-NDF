@@ -10,9 +10,10 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
   const fetchExpenses = useCallback(async (filters?: ExpenseFilters) => {
     setLoading(true);
     try {
+      /* Pas d’embed expenses→profiles (deux FK → PGRST201). Deux requêtes + fusion. */
       let query = supabase
         .from('expenses')
-        .select('*, profiles(full_name, email)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (!isAdmin && userId) {
@@ -34,9 +35,30 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
         query = query.lte('receipt_date', filters.date_to);
       }
 
-      const { data, error } = await query;
+      const { data: rows, error } = await query;
       if (error) throw error;
-      setExpenses((data as Expense[]) ?? []);
+      const list = rows ?? [];
+      const ids = [...new Set(list.map(r => r.user_id).filter(Boolean))] as string[];
+
+      const profileById: Record<string, { full_name: string; email: string; id: string }> = {};
+      if (ids.length > 0) {
+        const { data: profs, error: pErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', ids);
+        if (pErr) throw pErr;
+        for (const p of profs ?? []) {
+          profileById[p.id] = p;
+        }
+      }
+
+      const merged: Expense[] = list.map(row => ({
+        ...row,
+        profiles: profileById[row.user_id]
+          ? (profileById[row.user_id] as Expense['profiles'])
+          : undefined,
+      }));
+      setExpenses(merged);
     } catch (err) {
       console.error('Fetch expenses error:', err);
     } finally {
