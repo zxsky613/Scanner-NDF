@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
@@ -175,24 +176,22 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   };
 
   if (showCamera) {
+    /* Pas de className sur CameraView (iOS). Pas d’enfants dans CameraView (doc Expo) → overlay en sibling. */
     return (
-      <View className="flex-1">
-        <CameraView ref={cameraRef} className="flex-1" facing="back">
-          <View className="flex-1 justify-end items-center pb-10">
-            <TouchableOpacity
-              className="w-20 h-20 bg-white rounded-full items-center justify-center border-4 border-gray-300"
-              onPress={capturePhoto}
-            >
-              <View className="w-16 h-16 bg-primary-600 rounded-full" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="mt-4"
-              onPress={() => setShowCamera(false)}
-            >
-              <Text className="text-white text-base font-medium">{t('common.cancel')}</Text>
-            </TouchableOpacity>
-          </View>
-        </CameraView>
+      <View style={styles.cameraRoot}>
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
+        <View style={styles.cameraOverlay} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.shutterOuter}
+            onPress={capturePhoto}
+            accessibilityRole="button"
+          >
+            <View style={styles.shutterInner} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cancelCam} onPress={() => setShowCamera(false)}>
+            <Text style={styles.cancelCamText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -409,3 +408,42 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     </KeyboardAvoidingView>
   );
 };
+
+const styles = StyleSheet.create({
+  cameraRoot: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: Platform.OS === 'ios' ? 48 : 24,
+  },
+  shutterOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#d1d5db',
+  },
+  shutterInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#2563eb',
+  },
+  cancelCam: {
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  cancelCamText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+});
