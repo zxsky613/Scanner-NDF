@@ -31,7 +31,13 @@ interface Props {
 }
 
 const statusOptions: (ExpenseStatus | 'all')[] = ['all', 'pending', 'approved', 'rejected'];
-const categoryOptions: (ExpenseCategory | 'all')[] = ['all', 'food', 'materials', 'travel'];
+const categoryOptions: (ExpenseCategory | 'all')[] = [
+  'all',
+  'food',
+  'materials',
+  'travel',
+  'other',
+];
 
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t } = useTranslation();
@@ -129,31 +135,45 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     rejected: expenses.filter(e => e.status === 'rejected').length,
   };
 
+  const openExpenseDetail = (expense: Expense) => {
+    navigation.navigate('ExpenseDetail', { expense });
+  };
+
   const renderExpense = ({ item }: { item: Expense }) => (
     <View className="bg-white rounded-2xl p-4 mb-3 mx-4 border border-gray-100 shadow-sm">
-      <View className="flex-row items-start justify-between mb-2">
-        <View className="flex-1">
-          <Text className="font-semibold text-gray-900 text-base">{item.supplier}</Text>
-          <Text className="text-gray-500 text-sm mt-0.5">
-            {(item.profiles as any)?.full_name ?? '—'}
-          </Text>
-          <Text className="text-gray-400 text-xs mt-0.5">
-            {formatDate(item.receipt_date)} · {t(`expense.${item.category}`)}
-          </Text>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => openExpenseDetail(item)}
+        accessibilityRole="button"
+        accessibilityLabel={t('admin.viewDetails')}
+      >
+        <View className="flex-row items-start justify-between mb-1">
+          <View className="flex-1 pr-2">
+            <Text className="font-semibold text-gray-900 text-base">{item.supplier}</Text>
+            <Text className="text-gray-500 text-sm mt-0.5">
+              {(item.profiles as Profile | undefined)?.full_name ?? '—'}
+            </Text>
+            <Text className="text-gray-400 text-xs mt-0.5">
+              {formatDate(item.receipt_date)} · {t(`expense.${item.category}`)}
+            </Text>
+          </View>
+          <View className="items-end">
+            <Text className="font-bold text-gray-900">{formatCurrency(item.amount_ttc)}</Text>
+            <Text className="text-gray-400 text-xs mt-0.5">
+              HT: {formatCurrency(item.amount_ht)}
+            </Text>
+            <Text className="text-primary-600 text-xs font-medium mt-1">
+              {t('admin.viewDetails')} ›
+            </Text>
+          </View>
         </View>
-        <View className="items-end">
-          <Text className="font-bold text-gray-900">{formatCurrency(item.amount_ttc)}</Text>
-          <Text className="text-gray-400 text-xs mt-0.5">
-            HT: {formatCurrency(item.amount_ht)}
-          </Text>
-        </View>
-      </View>
 
-      {item.is_fiscal_alert && (
-        <View className="bg-red-50 rounded-lg px-3 py-1.5 mb-2">
-          <Text className="text-red-700 text-xs">⚠️ {t('alerts.fiscalTitle')}</Text>
-        </View>
-      )}
+        {item.is_fiscal_alert && (
+          <View className="bg-red-50 rounded-lg px-3 py-1.5 mb-2">
+            <Text className="text-red-700 text-xs">⚠️ {t('alerts.fiscalTitle')}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {item.status === 'pending' && (
         <View className="flex-row gap-2 mt-2">

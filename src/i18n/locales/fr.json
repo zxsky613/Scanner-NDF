@@ -18,7 +18,8 @@
     "error": "Erreur",
     "success": "Succès",
     "noData": "Aucune donnée",
-    "all": "Tous"
+    "all": "Tous",
+    "close": "Fermer"
   },
   "auth": {
     "login": "Connexion",
@@ -64,10 +65,16 @@
     "analysisComplete": "Analyse terminée",
     "analysisFailed": "Échec de l'analyse. Veuillez remplir manuellement.",
     "noExpenses": "Aucune note de frais",
-    "noExpensesDesc": "Scannez un ticket pour commencer"
+    "noExpensesDesc": "Scannez un ticket pour commencer",
+    "tapToViewFullReceipt": "Afficher le justificatif en grand",
+    "receiptAttachedTitle": "Justificatif joint",
+    "receiptAttachedHint": "Toucher pour voir le ticket en entier",
+    "receiptFullTitle": "Aperçu du justificatif"
   },
   "expense": {
     "date": "Date",
+    "datePlaceholder": "JJ/MM/AAAA",
+    "dateInvalid": "Date invalide. Utilisez le format JJ/MM/AAAA (ex. 07/04/2026).",
     "supplier": "Fournisseur",
     "amountHT": "Montant HT",
     "amountTTC": "Montant TTC",
@@ -88,9 +95,22 @@
     "food": "Nourriture",
     "materials": "Matériaux",
     "travel": "Déplacements",
+    "other": "Autres",
+    "otherExplainTitle": "Précisez cette note de frais",
+    "otherExplainHint": "Indiquez la nature de la dépense (obligatoire pour la catégorie Autres).",
+    "otherExplainPlaceholder": "Ex. : achat fournitures bureau, frais bancaires, cotisation…",
+    "otherExplainRequired": "Merci de décrire la note de frais lorsque vous choisissez « Autres ».",
     "submitSuccess": "Note de frais enregistrée",
     "submitError": "Erreur lors de l'enregistrement",
-    "deleteConfirm": "Voulez-vous vraiment supprimer cette note ?"
+    "deleteModalTitle": "Supprimer la note ?",
+    "deleteConfirm": "Cette action est définitive. Confirmer la suppression de cette note de frais ?",
+    "deleteFailed": "La suppression a échoué. Seules les notes « en attente » peuvent être supprimées ; une note déjà approuvée ou rejetée doit rester en historique.",
+    "receiptLoadError": "Impossible d’afficher le scan du ticket (vérifier les droits Storage Supabase ou le lien).",
+    "openOriginalReceipt": "Voir le ticket original",
+    "noReceiptAttached": "Aucun ticket numérisé pour cette note",
+    "receiptPreviewTitle": "Ticket de caisse",
+    "receiptRequired": "Ajoutez une photo ou une image du ticket (galerie ou appareil photo) avant d’enregistrer la note.",
+    "uploadReceiptFailed": "L’envoi du ticket vers le stockage a échoué (droits Supabase, réseau ou format). La note n’a pas été enregistrée. Réessayez ou vérifiez la console."
   },
   "alerts": {
     "duplicateTitle": "Doublon Détecté",
@@ -122,7 +142,15 @@
     "rejectedCount": "Rejetées",
     "dateFrom": "Date début",
     "dateTo": "Date fin",
-    "employee": "Employé"
+    "employee": "Employé",
+    "viewDetails": "Voir le détail"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "Aucune notification pour le moment.",
+    "markAllRead": "Tout lire",
+    "expenseUnavailableTitle": "Note introuvable",
+    "expenseUnavailableBody": "Cette note de frais n’existe plus ou vous n’y avez pas accès."
   },
   "settings": {
     "title": "Paramètres",

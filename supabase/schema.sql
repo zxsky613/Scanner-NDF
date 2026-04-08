@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 CREATE TYPE user_role AS ENUM ('employee', 'manager', 'finance');
 CREATE TYPE expense_status AS ENUM ('pending', 'approved', 'rejected');
-CREATE TYPE expense_category AS ENUM ('food', 'materials', 'travel');
+CREATE TYPE expense_category AS ENUM ('food', 'materials', 'travel', 'other');
 
 -- ============================================
 -- PROFILES TABLE
@@ -222,9 +222,7 @@ CREATE TRIGGER trigger_expense_metadata
 -- ============================================
 -- STORAGE BUCKET
 -- ============================================
--- Run in Supabase Dashboard > Storage:
--- Create bucket: "receipts" (public: false)
--- Policy: authenticated users can upload to their own folder
--- Policy: managers/finance can read all files
+-- Dashboard > Storage : créer le bucket "receipts" (public: désactivé).
+-- Puis exécuter supabase/storage_receipts_rls.sql (upload dossier utilisateur + lecture finance/manager).
 
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('receipts', 'receipts', false);

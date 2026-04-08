@@ -1,22 +1,32 @@
 import { readAsStringAsync } from 'expo-file-system';
+import { Platform } from 'react-native';
 import { supabase } from '../config/supabase';
 import { STORAGE_BUCKET } from '../config/constants';
 import { decode } from 'base64-arraybuffer';
+
+async function imageUriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
+  if (Platform.OS === 'web') {
+    const res = await fetch(uri);
+    if (!res.ok) {
+      throw new Error(`Lecture image impossible (${res.status})`);
+    }
+    return await res.arrayBuffer();
+  }
+  const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+  return decode(base64);
+}
 
 export const uploadReceiptImage = async (
   uri: string,
   userId: string
 ): Promise<string | null> => {
   try {
-    const base64 = await readAsStringAsync(uri, {
-      encoding: 'base64',
-    });
-
+    const body = await imageUriToArrayBuffer(uri);
     const fileName = `${userId}/${Date.now()}.jpg`;
 
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(fileName, decode(base64), {
+      .upload(fileName, body, {
         contentType: 'image/jpeg',
         upsert: false,
       });

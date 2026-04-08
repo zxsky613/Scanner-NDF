@@ -18,7 +18,8 @@
     "error": "错误",
     "success": "成功",
     "noData": "暂无数据",
-    "all": "全部"
+    "all": "全部",
+    "close": "关闭"
   },
   "auth": {
     "login": "登录",
@@ -64,10 +65,16 @@
     "analysisComplete": "分析完成",
     "analysisFailed": "分析失败，请手动填写。",
     "noExpenses": "暂无费用记录",
-    "noExpensesDesc": "扫描收据开始记录"
+    "noExpensesDesc": "扫描收据开始记录",
+    "tapToViewFullReceipt": "查看完整票据",
+    "receiptAttachedTitle": "已添加凭证",
+    "receiptAttachedHint": "点击可大图查看",
+    "receiptFullTitle": "票据预览"
   },
   "expense": {
     "date": "日期",
+    "datePlaceholder": "日/月/年",
+    "dateInvalid": "日期无效，请使用 日/月/年（8 位数字，共 10 个字符含斜杠）。",
     "supplier": "供应商",
     "amountHT": "不含税金额",
     "amountTTC": "含税金额",
@@ -88,9 +95,22 @@
     "food": "餐饮",
     "materials": "材料",
     "travel": "差旅",
+    "other": "其他",
+    "otherExplainTitle": "请说明此费用",
+    "otherExplainHint": "请填写费用性质（选择「其他」时必填）。",
+    "otherExplainPlaceholder": "例如：办公用品、银行手续费、会费……",
+    "otherExplainRequired": "选择「其他」时请填写费用说明。",
     "submitSuccess": "费用已保存",
     "submitError": "保存失败",
-    "deleteConfirm": "确定要删除这条费用记录吗？"
+    "deleteModalTitle": "删除费用？",
+    "deleteConfirm": "此操作无法撤销。确定删除这条费用记录？",
+    "deleteFailed": "删除失败。只有「待审核」的费用可删除；已批准或已拒绝的需保留记录。",
+    "receiptLoadError": "无法加载收据图片。请检查 Supabase Storage 权限或文件链接。",
+    "openOriginalReceipt": "查看原始收据",
+    "noReceiptAttached": "此费用暂无收据图片",
+    "receiptPreviewTitle": "收据照片",
+    "receiptRequired": "保存前请先添加收据照片（拍照或从相册选择）。",
+    "uploadReceiptFailed": "收据上传到存储失败（权限、网络或格式）。费用未保存。请重试或查看控制台。"
   },
   "alerts": {
     "duplicateTitle": "检测到重复",
@@ -122,7 +142,15 @@
     "rejectedCount": "已拒绝",
     "dateFrom": "开始日期",
     "dateTo": "结束日期",
-    "employee": "员工"
+    "employee": "员工",
+    "viewDetails": "查看详情"
+  },
+  "notifications": {
+    "title": "通知",
+    "empty": "暂无通知。",
+    "markAllRead": "全部标为已读",
+    "expenseUnavailableTitle": "无法打开单据",
+    "expenseUnavailableBody": "该报销单已不存在或您无权访问。"
   },
   "settings": {
     "title": "设置",

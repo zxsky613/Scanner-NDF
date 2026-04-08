@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, processLock } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 import { authStorage } from '../lib/authStorage';
 import { supabaseFetch } from '../lib/supabaseFetch';
 
@@ -26,5 +27,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     /* Password login : évite des blocages PKCE / hash sur le web */
     detectSessionInUrl: false,
     flowType: 'implicit',
+    /**
+     * Sur iOS/Android, forcer un verrou in-process évite les courses avec
+     * l’API Web Locks (vol de verrou / "steal") si l’environnement expose
+     * `navigator.locks`. Sur le web, on garde le défaut (coordination multi-onglets).
+     */
+    ...(Platform.OS !== 'web' ? { lock: processLock } : {}),
   },
 });

@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { Profile } from '../types';
+import { NotificationsProvider, useNotificationsContext } from '../context/NotificationsContext';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { EmployeeHomeScreen } from '../screens/employee/EmployeeHomeScreen';
@@ -12,6 +13,7 @@ import { NewExpenseScreen } from '../screens/employee/NewExpenseScreen';
 import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,6 +66,26 @@ const AdminStack: React.FC<AdminStackProps> = ({ profile }) => (
     <Stack.Screen name="AdminDashboard">
       {(props: any) => <AdminDashboardScreen {...props} profile={profile} />}
     </Stack.Screen>
+    <Stack.Screen name="ExpenseDetail">
+      {(props: any) => <ExpenseDetailScreen {...props} />}
+    </Stack.Screen>
+  </Stack.Navigator>
+);
+
+const NotificationsStack: React.FC = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: true,
+      headerTintColor: '#2563eb',
+      headerTitleStyle: { fontWeight: '700' as const },
+      headerStyle: { backgroundColor: '#ffffff' },
+      headerShadowVisible: false,
+    }}
+  >
+    <Stack.Screen name="NotificationsHome" component={NotificationsScreen} />
+    <Stack.Screen name="ExpenseDetail" options={{ headerShown: false }}>
+      {(props: any) => <ExpenseDetailScreen {...props} />}
+    </Stack.Screen>
   </Stack.Navigator>
 );
 
@@ -79,12 +101,13 @@ const TabIcon = ({ icon, focused }: { icon: string; focused: boolean }) => (
   </View>
 );
 
-export const MainNavigator: React.FC<MainNavigatorProps> = ({
+const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   profile,
   isAdmin,
   onLogout,
 }) => {
   const { t } = useTranslation();
+  const { unreadCount } = useNotificationsContext();
 
   return (
     <Tab.Navigator
@@ -129,6 +152,18 @@ export const MainNavigator: React.FC<MainNavigatorProps> = ({
       )}
 
       <Tab.Screen
+        name="NotificationsTab"
+        options={{
+          tabBarLabel: t('notifications.title'),
+          tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} />,
+          tabBarBadge:
+            unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
+        }}
+      >
+        {() => <NotificationsStack />}
+      </Tab.Screen>
+
+      <Tab.Screen
         name="SettingsTab"
         options={{
           tabBarLabel: t('settings.title'),
@@ -140,3 +175,9 @@ export const MainNavigator: React.FC<MainNavigatorProps> = ({
     </Tab.Navigator>
   );
 };
+
+export const MainNavigator: React.FC<MainNavigatorProps> = props => (
+  <NotificationsProvider userId={props.profile.id}>
+    <MainNavigatorInner {...props} />
+  </NotificationsProvider>
+);

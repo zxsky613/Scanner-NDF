@@ -1,6 +1,6 @@
 export type UserRole = 'employee' | 'manager' | 'finance';
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected';
-export type ExpenseCategory = 'food' | 'materials' | 'travel';
+export type ExpenseCategory = 'food' | 'materials' | 'travel' | 'other';
 export type SupportedLanguage = 'fr' | 'en' | 'zh';
 
 export interface Profile {
@@ -61,8 +61,26 @@ export interface ExpenseFilters {
   date_to?: string;
 }
 
+export type NotificationType =
+  | 'expense_created'
+  | 'expense_updated'
+  | 'expense_deleted'
+  | 'expense_reviewed';
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  expense_id: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export const CATEGORY_ACCOUNTING_CODES: Record<ExpenseCategory, string> = {
   food: '625100',
   materials: '606300',
   travel: '625600',
+  other: '628000',
 };

@@ -45,25 +45,32 @@ export const useAuth = () => {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let cancelled = false;
+
+    const applySession = async (session: Session | null) => {
       let profile: Profile | null = null;
       if (session?.user) {
         profile = await fetchProfile(session.user.id);
       }
-      setState({ session, profile, loading: false });
-    });
+      if (!cancelled) {
+        setState({ session, profile, loading: false });
+      }
+    };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        let profile: Profile | null = null;
-        if (session?.user) {
-          profile = await fetchProfile(session.user.id);
-        }
-        setState({ session, profile, loading: false });
+      (_event, session) => {
+        // Évite getSession() en parallèle : INITIAL_SESSION couvre le chargement initial.
+        // Reporter le travail évite les courses sur le verrou GoTrue (recommandé SDK).
+        queueMicrotask(() => {
+          void applySession(session);
+        });
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
