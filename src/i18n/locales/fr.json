@@ -189,7 +189,28 @@
     "new": "Nouveau",
     "tapToOpen": "Voir la note",
     "expenseUnavailableTitle": "Note introuvable",
-    "expenseUnavailableBody": "Cette note de frais n’existe plus ou vous n’y avez pas accès."
+    "expenseUnavailableBody": "Cette note de frais n’existe plus ou vous n’y avez pas accès.",
+    "fallbackEmployee": "Employé",
+    "types": {
+      "expense_created": {
+        "title": "Nouvelle note de frais",
+        "body": "{{employee}} — {{supplier}} · {{amount}} TTC"
+      },
+      "expense_deleted": {
+        "title": "Note supprimée",
+        "body": "Une note en attente a été supprimée : {{supplier}}."
+      },
+      "expense_reviewed": {
+        "titleApproved": "Note approuvée",
+        "titleRejected": "Note rejetée",
+        "bodyApproved": "« {{supplier}} » — votre note a été approuvée.",
+        "bodyRejected": "« {{supplier}} » — votre note a été rejetée."
+      },
+      "expense_updated": {
+        "title": "Note modifiée",
+        "body": "{{employee}} a mis à jour : {{supplier}}."
+      }
+    }
   },
   "settings": {
     "title": "Paramètres",

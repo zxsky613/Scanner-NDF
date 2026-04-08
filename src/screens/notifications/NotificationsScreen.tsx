@@ -15,6 +15,7 @@ import { supabase } from '../../config/supabase';
 import { formatDate } from '../../utils/dateFormat';
 import { useNotificationsContext } from '../../context/NotificationsContext';
 import { showAppAlert } from '../../utils/alert';
+import { getLocalizedNotification } from '../../utils/notificationDisplay';
 import { theme, headerPaddingTop } from '../../config/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -58,7 +59,7 @@ const notificationVisual: Record<
 
 export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { notifications, loading, refresh, markRead, markAllRead, unreadCount } =
     useNotificationsContext();
 
@@ -144,6 +145,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
       ) : (
         <FlatList
           data={notifications}
+          extraData={i18n.language}
           keyExtractor={item => item.id}
           ListHeaderComponent={notifications.length > 0 ? <View className="h-3" /> : null}
           refreshControl={
@@ -162,6 +164,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
           renderItem={({ item }) => {
             const unread = !item.read_at;
             const vis = notificationVisual[item.type] ?? { icon: '🔔', iconBg: 'bg-gray-100' };
+            const { title: dispTitle, body: dispBody } = getLocalizedNotification(item, t);
             return (
               <TouchableOpacity
                 className={`mx-5 mb-3 p-4 rounded-[22px] bg-white border shadow-sm overflow-hidden flex-row items-center ${
@@ -181,15 +184,15 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
                       className={`text-base flex-1 ${unread ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}
                       numberOfLines={1}
                     >
-                      {item.title}
+                      {dispTitle}
                     </Text>
                     {unread ? (
                       <View className="w-2 h-2 rounded-full bg-primary-600" />
                     ) : null}
                   </View>
-                  {item.body ? (
+                  {dispBody ? (
                     <Text className="text-gray-400 text-sm mt-0.5 leading-5" numberOfLines={2}>
-                      {item.body}
+                      {dispBody}
                     </Text>
                   ) : null}
                   <Text className="text-gray-300 text-[11px] font-medium mt-1">

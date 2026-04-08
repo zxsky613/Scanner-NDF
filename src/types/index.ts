@@ -73,6 +73,8 @@ export interface AppNotification {
   type: NotificationType;
   title: string;
   body: string | null;
+  /** Données structurées pour libellés i18n (remplies par le trigger SQL à jour). */
+  metadata?: Record<string, unknown> | null;
   expense_id: string | null;
   read_at: string | null;
   created_at: string;

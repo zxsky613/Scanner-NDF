@@ -189,7 +189,28 @@
     "new": "新",
     "tapToOpen": "查看报销单",
     "expenseUnavailableTitle": "无法打开单据",
-    "expenseUnavailableBody": "该报销单已不存在或您无权访问。"
+    "expenseUnavailableBody": "该报销单已不存在或您无权访问。",
+    "fallbackEmployee": "员工",
+    "types": {
+      "expense_created": {
+        "title": "新报销申请",
+        "body": "{{employee}} — {{supplier}} · {{amount}}（含税）"
+      },
+      "expense_deleted": {
+        "title": "报销已删除",
+        "body": "一条待审核的报销已删除：{{supplier}}。"
+      },
+      "expense_reviewed": {
+        "titleApproved": "报销已批准",
+        "titleRejected": "报销已拒绝",
+        "bodyApproved": "「{{supplier}}」— 您的报销已获批准。",
+        "bodyRejected": "「{{supplier}}」— 您的报销已被拒绝。"
+      },
+      "expense_updated": {
+        "title": "报销已修改",
+        "body": "{{employee}} 已更新：{{supplier}}。"
+      }
+    }
   },
   "settings": {
     "title": "设置",

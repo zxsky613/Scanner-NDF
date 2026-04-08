@@ -189,7 +189,28 @@
     "new": "New",
     "tapToOpen": "View expense",
     "expenseUnavailableTitle": "Expense unavailable",
-    "expenseUnavailableBody": "This expense no longer exists or you don’t have access to it."
+    "expenseUnavailableBody": "This expense no longer exists or you don’t have access to it.",
+    "fallbackEmployee": "Team member",
+    "types": {
+      "expense_created": {
+        "title": "New expense report",
+        "body": "{{employee}} — {{supplier}} · {{amount}} (incl. tax)"
+      },
+      "expense_deleted": {
+        "title": "Expense removed",
+        "body": "A pending expense was deleted: {{supplier}}."
+      },
+      "expense_reviewed": {
+        "titleApproved": "Expense approved",
+        "titleRejected": "Expense rejected",
+        "bodyApproved": "“{{supplier}}” — your expense has been approved.",
+        "bodyRejected": "“{{supplier}}” — your expense has been rejected."
+      },
+      "expense_updated": {
+        "title": "Expense updated",
+        "body": "{{employee}} updated: {{supplier}}."
+      }
+    }
   },
   "settings": {
     "title": "Settings",
