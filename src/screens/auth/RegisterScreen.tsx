@@ -15,6 +15,7 @@ import { UserRole } from '../../types';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
 import { showAppAlert } from '../../utils/alert';
 import { isEmailAlreadyRegisteredError } from '../../utils/authErrors';
+import { theme } from '../../config/theme';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -47,12 +48,12 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
     const mail = email.trim();
 
     if (!given || !family || !mail || !password) {
-      showAppAlert(t('auth.popupIncompleteTitle'), t('auth.popupIncompleteBody'));
+      showAppAlert(t('auth.popupIncompleteTitle'), t('auth.popupIncompleteBody'), 'error');
       return;
     }
 
     if (password.length < 6) {
-      showAppAlert(t('auth.popupPasswordTitle'), t('auth.popupPasswordBody'));
+      showAppAlert(t('auth.popupPasswordTitle'), t('auth.popupPasswordBody'), 'error');
       return;
     }
 
@@ -62,7 +63,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
       const { error } = await onRegister(mail, password, fullName, role);
       if (error) {
         if (isEmailAlreadyRegisteredError(error)) {
-          showAppAlert(t('auth.popupEmailExistsTitle'), t('auth.popupEmailExistsBody'));
+          showAppAlert(t('auth.popupEmailExistsTitle'), t('auth.popupEmailExistsBody'), 'error');
           return;
         }
         const raw =
@@ -72,11 +73,12 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
           raw.toLowerCase().includes('no api key found')
             ? t('auth.invalidSupabaseKey')
             : raw || t('auth.registerError');
-        showAppAlert(t('auth.registerError'), detail);
+        showAppAlert(t('auth.registerError'), detail, 'error');
         return;
       }
-      showAppAlert(t('common.success'), t('auth.registerSuccess'));
-      navigation.goBack();
+      showAppAlert(t('common.success'), t('auth.registerSuccess'), 'success', () =>
+        navigation.goBack()
+      );
     } finally {
       setLoading(false);
     }
@@ -85,7 +87,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 relative bg-white"
+      className="flex-1 relative bg-surface"
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
@@ -103,7 +105,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
               <View className="flex-1">
                 <Text className="text-gray-700 font-medium mb-2">{t('auth.firstName')}</Text>
                 <TextInput
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                  className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900"
                   value={firstName}
                   onChangeText={setFirstName}
                   placeholder={t('auth.firstName')}
@@ -113,7 +115,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
               <View className="flex-1">
                 <Text className="text-gray-700 font-medium mb-2">{t('auth.lastName')}</Text>
                 <TextInput
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                  className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900"
                   value={lastName}
                   onChangeText={setLastName}
                   placeholder={t('auth.lastName')}
@@ -125,7 +127,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
             <View className="mb-4 w-full">
               <Text className="text-gray-700 font-medium mb-2">{t('auth.email')}</Text>
               <TextInput
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900"
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('auth.email')}
@@ -138,7 +140,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
             <View className="mb-4 w-full">
               <Text className="text-gray-700 font-medium mb-2">{t('auth.password')}</Text>
               <TextInput
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900"
                 value={password}
                 onChangeText={setPassword}
                 placeholder={t('auth.password')}
@@ -152,10 +154,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
                 {roles.map(r => (
                   <TouchableOpacity
                     key={r.value}
-                    className={`flex-1 py-3 rounded-xl items-center border ${
+                    className={`flex-1 py-3.5 rounded-full items-center border ${
                       role === r.value
                         ? 'bg-primary-600 border-primary-600'
-                        : 'bg-gray-50 border-gray-200'
+                        : 'bg-white border-gray-100'
                     }`}
                     onPress={() => setRole(r.value)}
                   >
@@ -172,14 +174,25 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
             </View>
 
             <TouchableOpacity
-              className={`w-full rounded-xl py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}
+              className={`w-full rounded-full py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}
               onPress={handleRegister}
               disabled={loading}
+              style={
+                loading
+                  ? undefined
+                  : {
+                      shadowColor: theme.brandPrimary,
+                      shadowOffset: { width: 0, height: 10 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 14,
+                      elevation: 8,
+                    }
+              }
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-white font-semibold text-base">
+                <Text className="text-white font-bold text-base">
                   {t('auth.register')}
                 </Text>
               )}

@@ -7,7 +7,7 @@ Application mobile multiplateforme (iOS/Android) de gestion de notes de frais av
 - **Frontend** : React Native (Expo), TypeScript, NativeWind (Tailwind CSS)
 - **Backend** : Supabase (Auth, Database, Storage)
 - **i18n** : i18next, react-i18next, expo-localization (FR/EN/ZH)
-- **Caméra & OCR** : expo-camera + OpenAI GPT-4o Vision API
+- **Caméra & vision** : expo-camera + **Groq** (Llama 4 Scout visuel)
 - **Export** : xlsx (fichiers .xlsx)
 
 ## Installation
@@ -32,13 +32,29 @@ const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
 const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
 ```
 
-### 2. API IA (OpenAI)
+### 2. API IA (Groq)
 
-Mettez à jour `src/config/constants.ts` avec votre clé API :
+1. Créez une clé sur [console.groq.com](https://console.groq.com).
+2. Dans `.env` à la racine d’`ExpenseApp` :
 
-```typescript
-export const AI_API_KEY = 'YOUR_OPENAI_API_KEY';
+```env
+EXPO_PUBLIC_GROQ_API_KEY=gsk_votre_cle
 ```
+
+3. **Redémarrez** le serveur Expo après toute modification du `.env`.
+
+**Pourquoi le scan peut « ne rien faire »**
+
+- **Expo Web** : le navigateur bloque en général l’appel direct à Groq (CORS). Le flux Web utilise une **Edge Function** Supabase `extract-receipt` qui appelle Groq côté serveur.
+  - Installez la [Supabase CLI](https://supabase.com/docs/guides/cli), reliez le projet, puis :
+    ```bash
+    supabase secrets set GROQ_API_KEY=gsk_votre_cle
+    supabase functions deploy extract-receipt
+    ```
+  - Connectez-vous dans l’app avant de lancer un scan (la fonction vérifie un utilisateur authentifié).
+- **Mobile** : sous Expo SDK 54, la lecture fichier pour l’image doit passer par `expo-file-system/legacy` (déjà corrigé dans `aiExtraction.ts`).
+
+Fichier de la fonction : `supabase/functions/extract-receipt/index.ts`.
 
 ### 3. Storage Policies (Supabase Dashboard)
 

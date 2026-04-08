@@ -1,4 +1,4 @@
-import { readAsStringAsync } from 'expo-file-system';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase } from '../config/supabase';
 import { STORAGE_BUCKET } from '../config/constants';

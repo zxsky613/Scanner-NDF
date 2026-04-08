@@ -19,6 +19,8 @@ import { Expense, Profile } from '../../types';
 import { supabase } from '../../config/supabase';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
+import { theme, headerPaddingTop } from '../../config/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -34,6 +36,7 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
 const THUMB = 72;
 
 export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [expenseRow, setExpenseRow] = useState<Expense>(route.params.expense);
   const status = statusConfig[expenseRow.status];
@@ -130,28 +133,39 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <ScrollView
-      className="flex-1 bg-gray-50"
+      className="flex-1 bg-surface"
       keyboardShouldPersistTaps="handled"
       scrollEventThrottle={16}
     >
-      <View className="bg-primary-600 pt-14 pb-6 px-6 rounded-b-3xl">
-        <View className="flex-row items-center gap-4">
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text className="text-white text-lg">← {t('common.back')}</Text>
-          </TouchableOpacity>
-          <Text className="text-white text-xl font-bold flex-1">{expenseRow.supplier}</Text>
-          <View className={`px-3 py-1 rounded-full ${status.bg}`}>
-            <Text className={`text-sm font-medium ${status.text}`}>
-              {t(status.label)}
-            </Text>
+      <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+        <View
+          className="bg-white rounded-[28px] px-5 py-5 border border-gray-100/80 shadow-sm"
+          style={{
+            shadowColor: theme.brandPrimary,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.06,
+            shadowRadius: 20,
+            elevation: 4,
+          }}
+        >
+          <View className="flex-row items-center gap-3">
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
+              <Text className="text-primary-600 text-base font-bold">← {t('common.back')}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text className="text-gray-900 text-2xl font-bold mt-3 leading-tight" numberOfLines={2}>
+            {expenseRow.supplier}
+          </Text>
+          <View className={`self-start px-3 py-1.5 rounded-full mt-3 ${status.bg}`}>
+            <Text className={`text-xs font-bold ${status.text}`}>{t(status.label)}</Text>
           </View>
         </View>
       </View>
 
-      <View className="px-4 mt-6">
+      <View className="px-5 mt-5">
         {/* Bloc dédié : toute la carte est cliquable (Pressable + styles explicites pour le web) */}
         <View
-          className="bg-white rounded-2xl mb-4 border border-gray-200 shadow-sm"
+          className="bg-white rounded-[22px] mb-4 border border-gray-100 shadow-sm"
           style={Platform.OS === 'web' ? ({ overflow: 'visible' } as const) : undefined}
         >
           {hasReceipt ? (
@@ -179,7 +193,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                   }}
                 >
                   {thumbLoading ? (
-                    <ActivityIndicator size="small" color="#2563eb" />
+                    <ActivityIndicator size="small" color={theme.brandPrimary} />
                   ) : thumbUri ? (
                     <Image
                       source={{ uri: thumbUri }}
@@ -216,7 +230,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </View>
 
-        <View className="bg-white rounded-2xl p-5 mb-4 border border-gray-100">
+        <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
           <Text className="text-gray-900 font-bold text-lg mb-4">{t('expense.receipt')}</Text>
 
           {(expenseRow.profiles as Profile | undefined)?.full_name && (
@@ -236,7 +250,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </View>
 
-        <View className="bg-white rounded-2xl p-5 mb-4 border border-gray-100">
+        <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
           <Text className="text-gray-900 font-bold text-lg mb-4">{t('expense.vat')}</Text>
           <InfoRow label={t('expense.amountHT')} value={formatCurrency(expenseRow.amount_ht)} />
           {expenseRow.vat_details.map((vat, i) => (
@@ -256,8 +270,8 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
 
         {expenseRow.is_fiscal_alert && (
-          <View className="bg-red-50 rounded-2xl p-4 mb-4 border border-red-100">
-            <Text className="text-red-800 font-semibold">⚠️ {t('alerts.fiscalTitle')}</Text>
+          <View className="bg-red-50 rounded-[22px] p-4 mb-4 border border-red-100">
+            <Text className="text-red-800 font-bold">⚠️ {t('alerts.fiscalTitle')}</Text>
             <Text className="text-red-600 text-sm mt-1">
               {t('alerts.fiscalMessage', { threshold: 150 })}
             </Text>
@@ -265,8 +279,8 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         )}
 
         {expenseRow.rejection_reason && (
-          <View className="bg-red-50 rounded-2xl p-4 mb-4 border border-red-100">
-            <Text className="text-red-800 font-semibold">{t('admin.rejectionReason')}</Text>
+          <View className="bg-red-50 rounded-[22px] p-4 mb-4 border border-red-100">
+            <Text className="text-red-800 font-bold">{t('admin.rejectionReason')}</Text>
             <Text className="text-red-600 text-sm mt-1">{expenseRow.rejection_reason}</Text>
           </View>
         )}

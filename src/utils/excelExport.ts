@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { Platform } from 'react-native';
 import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Expense } from '../types';
@@ -13,7 +14,9 @@ export const exportToExcel = async (expenses: Expense[]): Promise<void> => {
     [t('expense.supplier')]: e.supplier,
     [t('admin.employee')]: (e.profiles as any)?.full_name ?? e.user_id,
     [t('expense.amountHT')]: e.amount_ht,
-    [t('expense.vat')]: e.vat_details.map(v => `${v.rate}%: ${v.amount}`).join(' | '),
+    [t('expense.vat')]: (e.vat_details ?? [])
+      .map(v => `${v.rate}%: ${v.amount}`)
+      .join(' | '),
     [t('expense.amountTTC')]: e.amount_ttc,
     [t('expense.category')]: t(`expense.${e.category}`),
     [t('expense.accountingCode')]: e.accounting_code ?? '',
@@ -30,11 +33,33 @@ export const exportToExcel = async (expenses: Expense[]): Promise<void> => {
   }));
   ws['!cols'] = colWidths;
 
-  const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   const fileName = `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
+  /* Web : pas de vrai FS ni partage fichier fiable — téléchargement direct. */
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   const file = new File(Paths.cache, fileName);
   file.write(wbout);
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (!canShare) {
+    throw new Error(t('admin.exportShareUnavailable'));
+  }
 
   await Sharing.shareAsync(file.uri, {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

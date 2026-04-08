@@ -1,9 +1,11 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View } from 'react-native';
+import { View, Platform } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
+import { Font } from '../config/fonts';
 import { Profile } from '../types';
 import { NotificationsProvider, useNotificationsContext } from '../context/NotificationsContext';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -73,17 +75,9 @@ const AdminStack: React.FC<AdminStackProps> = ({ profile }) => (
 );
 
 const NotificationsStack: React.FC = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerShown: true,
-      headerTintColor: '#2563eb',
-      headerTitleStyle: { fontWeight: '700' as const },
-      headerStyle: { backgroundColor: '#ffffff' },
-      headerShadowVisible: false,
-    }}
-  >
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="NotificationsHome" component={NotificationsScreen} />
-    <Stack.Screen name="ExpenseDetail" options={{ headerShown: false }}>
+    <Stack.Screen name="ExpenseDetail">
       {(props: any) => <ExpenseDetailScreen {...props} />}
     </Stack.Screen>
   </Stack.Navigator>
@@ -95,11 +89,23 @@ interface MainNavigatorProps {
   onLogout: () => Promise<void>;
 }
 
-const TabIcon = ({ icon, focused }: { icon: string; focused: boolean }) => (
-  <View className={`items-center justify-center rounded-xl px-3 py-1 ${focused ? 'bg-primary-100' : ''}`}>
-    <Text className="text-xl">{icon}</Text>
-  </View>
-);
+const TAB_ICON_SZ = Platform.OS === 'android' ? 28 : 26;
+
+type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+const TAB_INK = '#000000';
+
+const TabIcon = ({ name, focused }: { name: TabIconName; focused: boolean }) => {
+  return (
+    <View
+      className={`items-center justify-center rounded-full min-w-[52px] min-h-[44px] ${
+        focused ? 'bg-gray-100' : ''
+      }`}
+    >
+      <MaterialCommunityIcons name={name} size={TAB_ICON_SZ} color={TAB_INK} />
+    </View>
+  );
+};
 
 const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   profile,
@@ -113,27 +119,45 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: true,
         tabBarStyle: {
-          height: 80,
+          height: Platform.OS === 'ios' ? 92 : 80,
           paddingTop: 8,
-          paddingBottom: 20,
-          borderTopWidth: 1,
-          borderTopColor: '#f3f4f6',
-          backgroundColor: '#ffffff',
+          paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+          paddingHorizontal: 4,
+          borderTopWidth: 0,
+          backgroundColor: '#FFFFFF',
+          ...(Platform.OS === 'ios'
+            ? {
+                shadowColor: '#2D5BFF',
+                shadowOffset: { width: 0, height: -6 },
+                shadowOpacity: 0.12,
+                shadowRadius: 20,
+              }
+            : { elevation: 20 }),
         },
-        tabBarActiveTintColor: '#2563eb',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: TAB_INK,
+        tabBarInactiveTintColor: TAB_INK,
+        tabBarItemStyle: {
+          paddingVertical: 4,
+          minWidth: 56,
+        },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontFamily: Font.semibold,
+          fontSize: 11,
           fontWeight: '600',
+          letterSpacing: 0.15,
+          marginTop: 2,
         },
       }}
     >
       <Tab.Screen
         name="ExpensesTab"
         options={{
-          tabBarLabel: t('employee.title'),
-          tabBarIcon: ({ focused }) => <TabIcon icon="📋" focused={focused} />,
+          tabBarLabel: t('navTabs.expenses'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="clipboard-text-outline" focused={focused} />
+          ),
         }}
       >
         {() => <EmployeeStack profile={profile} />}
@@ -143,8 +167,10 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
         <Tab.Screen
           name="AdminTab"
           options={{
-            tabBarLabel: t('admin.title'),
-            tabBarIcon: ({ focused }) => <TabIcon icon="📊" focused={focused} />,
+            tabBarLabel: t('navTabs.admin'),
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="view-dashboard-outline" focused={focused} />
+            ),
           }}
         >
           {() => <AdminStack profile={profile} />}
@@ -154,8 +180,8 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
       <Tab.Screen
         name="NotificationsTab"
         options={{
-          tabBarLabel: t('notifications.title'),
-          tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} />,
+          tabBarLabel: t('navTabs.notifications'),
+          tabBarIcon: ({ focused }) => <TabIcon name="bell-outline" focused={focused} />,
           tabBarBadge:
             unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
         }}
@@ -166,8 +192,8 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
       <Tab.Screen
         name="SettingsTab"
         options={{
-          tabBarLabel: t('settings.title'),
-          tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} />,
+          tabBarLabel: t('navTabs.settings'),
+          tabBarIcon: ({ focused }) => <TabIcon name="cog-outline" focused={focused} />,
         }}
       >
         {() => <SettingsScreen profile={profile} onLogout={onLogout} />}

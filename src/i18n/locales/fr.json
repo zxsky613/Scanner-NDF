@@ -21,10 +21,17 @@
     "all": "Tous",
     "close": "Fermer"
   },
+  "navTabs": {
+    "expenses": "Notes",
+    "admin": "Suivi",
+    "notifications": "Alertes",
+    "settings": "Réglages"
+  },
   "auth": {
     "login": "Connexion",
     "register": "Inscription",
     "logout": "Déconnexion",
+    "logoutConfirm": "Voulez-vous vraiment vous déconnecter ?",
     "email": "Adresse e-mail",
     "password": "Mot de passe",
     "fullName": "Nom complet",
@@ -58,6 +65,8 @@
   "employee": {
     "title": "Mes Notes de Frais",
     "newExpense": "Nouvelle Note",
+    "editExpense": "Modifier la note",
+    "swipeView": "Voir",
     "scanReceipt": "Scanner un Ticket",
     "uploadReceipt": "Importer une Image",
     "takePhoto": "Prendre une Photo",
@@ -68,8 +77,14 @@
     "noExpensesDesc": "Scannez un ticket pour commencer",
     "tapToViewFullReceipt": "Afficher le justificatif en grand",
     "receiptAttachedTitle": "Justificatif joint",
-    "receiptAttachedHint": "Toucher pour voir le ticket en entier",
-    "receiptFullTitle": "Aperçu du justificatif"
+    "receiptAttachedHint": "Toucher pour afficher ou remplacer le ticket",
+    "receiptFullTitle": "Aperçu du justificatif",
+    "receiptMenuSubtitle": "Actions sur le justificatif",
+    "receiptMenuTitle": "Justificatif",
+    "receiptMenuViewFull": "Voir en grand",
+    "receiptMenuGallery": "Choisir une autre image",
+    "receiptMenuCamera": "Prendre une nouvelle photo",
+    "receiptReplace": "Changer le ticket"
   },
   "expense": {
     "date": "Date",
@@ -82,6 +97,9 @@
     "vatRate": "Taux TVA",
     "vatBase": "Base HT",
     "vatAmount": "Montant TVA",
+    "vatAutoExplanation": "Saisissez le montant HT et le montant TTC du ticket : la TVA (TTC − HT), la base HT et un taux équivalent global sont calculés automatiquement.",
+    "vatEquivalentRate": "Taux équivalent (info)",
+    "ttcLessThanHt": "Le montant TTC doit être supérieur ou égal au montant HT.",
     "addVatRate": "Ajouter un taux",
     "removeVatRate": "Supprimer",
     "category": "Catégorie",
@@ -101,6 +119,7 @@
     "otherExplainPlaceholder": "Ex. : achat fournitures bureau, frais bancaires, cotisation…",
     "otherExplainRequired": "Merci de décrire la note de frais lorsque vous choisissez « Autres ».",
     "submitSuccess": "Note de frais enregistrée",
+    "updateSuccess": "Note de frais mise à jour",
     "submitError": "Erreur lors de l'enregistrement",
     "deleteModalTitle": "Supprimer la note ?",
     "deleteConfirm": "Cette action est définitive. Confirmer la suppression de cette note de frais ?",
@@ -110,7 +129,17 @@
     "noReceiptAttached": "Aucun ticket numérisé pour cette note",
     "receiptPreviewTitle": "Ticket de caisse",
     "receiptRequired": "Ajoutez une photo ou une image du ticket (galerie ou appareil photo) avant d’enregistrer la note.",
-    "uploadReceiptFailed": "L’envoi du ticket vers le stockage a échoué (droits Supabase, réseau ou format). La note n’a pas été enregistrée. Réessayez ou vérifiez la console."
+    "uploadReceiptFailed": "L’envoi du ticket vers le stockage a échoué (droits Supabase, réseau ou format). La note n’a pas été enregistrée. Réessayez ou vérifiez la console.",
+    "vatVerification": "Vérification (ticket)",
+    "vatRowHtSum": "HT = somme des bases",
+    "vatRowTtcSum": "TTC = somme bases + somme TVA",
+    "vatRowLineRate": "Ligne {{n}} : montant TVA ≈ base × taux",
+    "vatStatusOk": "OK",
+    "vatStatusKo": "À corriger",
+    "vatApplyComputedTtc": "Mettre le TTC calculé : {{amount}}",
+    "vatSubmitBlocked": "Les montants ne correspondent pas au détail TVA. Vérifiez les lignes (plusieurs taux possibles) ou mettez à jour le TTC.",
+    "vatHintMultiRate": "Plusieurs taux sur le ticket : ajoutez une ligne par taux (ex. 20 % et 10 %), puis saisissez base et TVA comme sur le ticket.",
+    "vatApplyComputedHt": "Mettre le HT à {{amount}} (somme des bases)"
   },
   "alerts": {
     "duplicateTitle": "Doublon Détecté",
@@ -134,6 +163,7 @@
     "exportExcel": "Exporter en Excel",
     "exportSuccess": "Fichier Excel exporté avec succès",
     "exportError": "Erreur lors de l'export",
+    "exportShareUnavailable": "Le partage de fichiers n'est pas disponible sur cet appareil. Essayez sur le web (téléchargement) ou une autre application.",
     "totalHT": "Total HT",
     "totalTTC": "Total TTC",
     "totalExpenses": "Nombre de notes",
@@ -142,13 +172,22 @@
     "rejectedCount": "Rejetées",
     "dateFrom": "Date début",
     "dateTo": "Date fin",
+    "selectDateRange": "Choisir la période",
+    "dateRangeHint": "Appuyez sur le jour de début, puis sur le jour de fin. Un seul jour : validez après le premier choix.",
+    "dateRangePlaceholder": "Toutes les dates",
+    "clearDateRange": "Effacer la période",
     "employee": "Employé",
     "viewDetails": "Voir le détail"
   },
   "notifications": {
     "title": "Notifications",
     "empty": "Aucune notification pour le moment.",
+    "emptyHint": "Vous serez informé des nouvelles notes, des modifications en attente et lorsque vos envois seront validés ou rejetés.",
+    "unreadLine": "{{count}} à lire",
+    "allCaughtUp": "Tout est lu.",
     "markAllRead": "Tout lire",
+    "new": "Nouveau",
+    "tapToOpen": "Voir la note",
     "expenseUnavailableTitle": "Note introuvable",
     "expenseUnavailableBody": "Cette note de frais n’existe plus ou vous n’y avez pas accès."
   },

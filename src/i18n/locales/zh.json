@@ -21,10 +21,17 @@
     "all": "全部",
     "close": "关闭"
   },
+  "navTabs": {
+    "expenses": "报销",
+    "admin": "管理",
+    "notifications": "通知",
+    "settings": "设置"
+  },
   "auth": {
     "login": "登录",
     "register": "注册",
     "logout": "退出登录",
+    "logoutConfirm": "确定要退出登录吗？",
     "email": "电子邮箱",
     "password": "密码",
     "fullName": "姓名",
@@ -58,6 +65,8 @@
   "employee": {
     "title": "我的费用",
     "newExpense": "新建费用",
+    "editExpense": "编辑费用",
+    "swipeView": "查看",
     "scanReceipt": "扫描收据",
     "uploadReceipt": "上传图片",
     "takePhoto": "拍照",
@@ -68,8 +77,14 @@
     "noExpensesDesc": "扫描收据开始记录",
     "tapToViewFullReceipt": "查看完整票据",
     "receiptAttachedTitle": "已添加凭证",
-    "receiptAttachedHint": "点击可大图查看",
-    "receiptFullTitle": "票据预览"
+    "receiptAttachedHint": "点击查看或更换票据",
+    "receiptFullTitle": "票据预览",
+    "receiptMenuSubtitle": "凭证操作",
+    "receiptMenuTitle": "凭证",
+    "receiptMenuViewFull": "大图查看",
+    "receiptMenuGallery": "从相册选择",
+    "receiptMenuCamera": "重新拍照",
+    "receiptReplace": "更换票据"
   },
   "expense": {
     "date": "日期",
@@ -82,6 +97,9 @@
     "vatRate": "税率",
     "vatBase": "不含税基数",
     "vatAmount": "税额",
+    "vatAutoExplanation": "请输入票据上的税前金额（HT）和含税总额（TTC）：系统将自动计算增值税（TTC−HT）、税基和折合税率（仅供参考）。",
+    "vatEquivalentRate": "折合税率（参考）",
+    "ttcLessThanHt": "含税总额必须大于或等于税前金额。",
     "addVatRate": "添加税率",
     "removeVatRate": "删除",
     "category": "类别",
@@ -101,6 +119,7 @@
     "otherExplainPlaceholder": "例如：办公用品、银行手续费、会费……",
     "otherExplainRequired": "选择「其他」时请填写费用说明。",
     "submitSuccess": "费用已保存",
+    "updateSuccess": "费用已更新",
     "submitError": "保存失败",
     "deleteModalTitle": "删除费用？",
     "deleteConfirm": "此操作无法撤销。确定删除这条费用记录？",
@@ -110,7 +129,17 @@
     "noReceiptAttached": "此费用暂无收据图片",
     "receiptPreviewTitle": "收据照片",
     "receiptRequired": "保存前请先添加收据照片（拍照或从相册选择）。",
-    "uploadReceiptFailed": "收据上传到存储失败（权限、网络或格式）。费用未保存。请重试或查看控制台。"
+    "uploadReceiptFailed": "收据上传到存储失败（权限、网络或格式）。费用未保存。请重试或查看控制台。",
+    "vatVerification": "票据核对",
+    "vatRowHtSum": "税前总额 = 各税基之和",
+    "vatRowTtcSum": "含税总额 = 税基之和 + 税额之和",
+    "vatRowLineRate": "第 {{n}} 行：税额 ≈ 税基 × 税率",
+    "vatStatusOk": "正确",
+    "vatStatusKo": "待修正",
+    "vatApplyComputedTtc": "填入计算含税总额：{{amount}}",
+    "vatSubmitBlocked": "金额与增值税明细不一致。请按票据逐行填写（可多税率）或更新含税总额。",
+    "vatHintMultiRate": "若票据有多种税率，请每种税率一行，税基与税额与票据一致。",
+    "vatApplyComputedHt": "将税前总额设为 {{amount}}（税基之和）"
   },
   "alerts": {
     "duplicateTitle": "检测到重复",
@@ -134,6 +163,7 @@
     "exportExcel": "导出Excel",
     "exportSuccess": "Excel文件导出成功",
     "exportError": "导出失败",
+    "exportShareUnavailable": "此设备不支持文件分享。请在网页版导出（下载）或换用其他方式。",
     "totalHT": "不含税总计",
     "totalTTC": "含税总计",
     "totalExpenses": "费用总数",
@@ -142,13 +172,22 @@
     "rejectedCount": "已拒绝",
     "dateFrom": "开始日期",
     "dateTo": "结束日期",
+    "selectDateRange": "选择日期范围",
+    "dateRangeHint": "先点起始日，再点结束日。单日只需选第一天后确认。",
+    "dateRangePlaceholder": "全部日期",
+    "clearDateRange": "清除日期范围",
     "employee": "员工",
     "viewDetails": "查看详情"
   },
   "notifications": {
     "title": "通知",
     "empty": "暂无通知。",
+    "emptyHint": "新报销、待审核的修改以及审批结果会显示在这里。",
+    "unreadLine": "{{count}} 条未读",
+    "allCaughtUp": "已全部阅读。",
     "markAllRead": "全部标为已读",
+    "new": "新",
+    "tapToOpen": "查看报销单",
     "expenseUnavailableTitle": "无法打开单据",
     "expenseUnavailableBody": "该报销单已不存在或您无权访问。"
   },

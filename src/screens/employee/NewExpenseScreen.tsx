@@ -1,36 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Modal,
+  Pressable,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Profile, ExpenseCategory, VatDetail } from '../../types';
+import type { RouteProp } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
+import { Profile, Expense, ExpenseCategory, VatDetail } from '../../types';
 import { useExpenses } from '../../hooks/useExpenses';
 import { extractReceiptData } from '../../lib/aiExtraction';
 import { uploadReceiptImage } from '../../lib/storage';
+import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
 import { maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
 import { parseMoney, roundMoney } from '../../utils/money';
+import { theme, headerPaddingTop } from '../../config/theme';
+import { showAppAlert, showAppConfirm } from '../../utils/alert';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
   profile: Profile;
 }
+
+export type NewExpenseRouteParams = {
+  NewExpense: { editExpense?: Expense };
+};
 
 const categories: { value: ExpenseCategory; icon: string }[] = [
   { value: 'food', icon: '🍽️' },
@@ -39,14 +49,35 @@ const categories: { value: ExpenseCategory; icon: string }[] = [
   { value: 'other', icon: '📋' },
 ];
 
+function isLocalReceiptUri(uri: string): boolean {
+  const u = uri.trim().toLowerCase();
+  return (
+    u.startsWith('file:') ||
+    u.startsWith('content:') ||
+    u.startsWith('ph:') ||
+    u.startsWith('blob:') ||
+    u.startsWith('data:') ||
+    u.startsWith('assets-library:')
+  );
+}
+
 export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t } = useTranslation();
+  const route = useRoute<RouteProp<NewExpenseRouteParams, 'NewExpense'>>();
+  const editExpense = route.params?.editExpense;
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { createExpense, checkDuplicate } = useExpenses(profile.id);
+  const { createExpense, updateExpense, checkDuplicate } = useExpenses(profile.id);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [initialReceiptUrl, setInitialReceiptUrl] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
   const [imageUri, setImageUri] = useState<string | null>(null);
+  /** URL réellement affichable (signée / locale) — `imageUri` garde l’URL stockée ou le fichier local pour l’upload. */
+  const [receiptDisplayUri, setReceiptDisplayUri] = useState<string | null>(null);
+  const [receiptUriLoading, setReceiptUriLoading] = useState(false);
+  const [receiptImageError, setReceiptImageError] = useState(false);
+  const [receiptMenuVisible, setReceiptMenuVisible] = useState(false);
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
   const [receiptDisplayHeight, setReceiptDisplayHeight] = useState(360);
   const [analyzing, setAnalyzing] = useState(false);
@@ -62,8 +93,6 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const [vatDetails, setVatDetails] = useState<VatDetail[]>([
     { rate: 20, base: 0, amount: 0 },
   ]);
-  /** Dernier montant HT ou TTC modifié — sert au recalcul quand le taux change */
-  const lastAmountFieldRef = useRef<'ht' | 'ttc'>('ht');
   const [category, setCategory] = useState<ExpenseCategory>('food');
   const [description, setDescription] = useState('');
 
@@ -73,11 +102,68 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     }
   }, [receiptPreviewOpen, windowWidth]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!imageUri?.trim()) {
+      setReceiptDisplayUri(null);
+      setReceiptUriLoading(false);
+      setReceiptImageError(false);
+      return;
+    }
+    const raw = imageUri.trim();
+    setReceiptImageError(false);
+    if (isLocalReceiptUri(raw)) {
+      setReceiptDisplayUri(raw);
+      setReceiptUriLoading(false);
+      return;
+    }
+    setReceiptUriLoading(true);
+    resolveReceiptImageUri(raw).then(resolved => {
+      if (!cancelled) {
+        setReceiptDisplayUri(resolved?.trim() ? resolved : raw);
+        setReceiptUriLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUri]);
+
+  useEffect(() => {
+    if (!editExpense?.id) {
+      setEditingId(null);
+      setInitialReceiptUrl(null);
+      return;
+    }
+    setEditingId(editExpense.id);
+    setInitialReceiptUrl(editExpense.receipt_image_url ?? null);
+    setReceiptDateInput(isoToDmyInput(editExpense.receipt_date));
+    setSupplier(editExpense.supplier);
+    setAmountHT(roundMoney(editExpense.amount_ht).toFixed(2));
+    setAmountTTC(roundMoney(editExpense.amount_ttc).toFixed(2));
+    setCategory(editExpense.category);
+    setDescription(editExpense.description ?? '');
+    setImageUri(editExpense.receipt_image_url ?? null);
+    const vatAmt = roundMoney(Math.max(0, editExpense.amount_ttc - editExpense.amount_ht));
+    const rate =
+      editExpense.amount_ht > 0.001
+        ? roundMoney((100 * vatAmt) / editExpense.amount_ht)
+        : 20;
+    setVatDetails([
+      {
+        rate: Number.isFinite(rate) ? rate : 20,
+        base: roundMoney(editExpense.amount_ht),
+        amount: vatAmt,
+      },
+    ]);
+  }, [editExpense?.id]);
+
   const handleTakePhoto = async () => {
+    setReceiptMenuVisible(false);
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert(t('alerts.cameraPermission'), t('alerts.cameraPermissionMsg'));
+        showAppAlert(t('alerts.cameraPermission'), t('alerts.cameraPermissionMsg'), 'error');
         return;
       }
     }
@@ -99,6 +185,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   };
 
   const handlePickImage = async () => {
+    setReceiptMenuVisible(false);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
@@ -121,202 +208,180 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       const ttc = roundMoney(data.amount_ttc);
       setAmountHT(ht.toFixed(2));
       setAmountTTC(ttc.toFixed(2));
-      /* Le TTC du ticket est souvent le plus fiable → changement de taux recalcule le HT */
-      lastAmountFieldRef.current = 'ttc';
-      const rateAi = data.vat_details[0]?.rate ?? 20;
-      const amount = roundMoney(ttc - ht);
-      const base = roundMoney(ht);
-      let rate = rateAi > 0 ? rateAi : 20;
-      if (base > 0 && amount >= 0) {
-        const ttcFromRate = roundMoney(base * (1 + rate / 100));
-        if (Math.abs(ttc - ttcFromRate) > 0.05) {
-          rate = roundMoney((100 * amount) / base);
-          if (!Number.isFinite(rate) || rate < 0) rate = rateAi > 0 ? rateAi : 20;
-        }
-      }
-      setVatDetails([{ rate, base, amount }]);
-      Alert.alert(t('common.success'), t('employee.analysisComplete'));
+      const vatAmt = roundMoney(Math.max(0, ttc - ht));
+      const rate =
+        ht > 0.001 ? roundMoney((100 * vatAmt) / ht) : data.vat_details[0]?.rate > 0
+          ? roundMoney(data.vat_details[0].rate)
+          : 0;
+      setVatDetails([{ rate: Number.isFinite(rate) ? rate : 0, base: ht, amount: vatAmt }]);
+      showAppAlert(t('common.success'), t('employee.analysisComplete'), 'success');
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
-      Alert.alert(t('common.error'), `${t('employee.analysisFailed')}\n\n${detail}`);
+      showAppAlert(t('common.error'), `${t('employee.analysisFailed')}\n\n${detail}`, 'error');
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const addVatRate = () => {
-    setVatDetails(prev => [...prev, { rate: 0, base: 0, amount: 0 }]);
-  };
+  /**
+   * Une ligne TVA : calculée depuis HT et TTC (ticket).
+   * TVA = TTC − HT ; taux affiché = équivalent global (100 × TVA / HT), informatif.
+   */
+  useEffect(() => {
+    setVatDetails(prev => {
+      if (prev.length !== 1) return prev;
+      const ht = parseMoney(amountHT);
+      const ttc = parseMoney(amountTTC);
+      if (ht === null) return prev;
 
-  const removeVatRate = (index: number) => {
-    setVatDetails(prev => prev.filter((_, i) => i !== index));
-  };
+      const base = roundMoney(ht);
+      const amount =
+        ttc !== null
+          ? roundMoney(Math.max(0, ttc - base))
+          : 0;
 
-  const updateVatDetail = (index: number, field: keyof VatDetail, value: string) => {
-    setVatDetails(prev =>
-      prev.map((v, i) => (i === index ? { ...v, [field]: parseMoney(value) ?? 0 } : v))
-    );
-  };
+      const rate =
+        base > 0.001 ? roundMoney((100 * amount) / base) : 0;
+      const r = Number.isFinite(rate) && rate >= 0 ? rate : 0;
+
+      const next = { rate: r, base, amount };
+      const p = prev[0];
+      if (
+        Math.abs(p.rate - next.rate) < 0.0001 &&
+        Math.abs(p.base - next.base) < 0.0001 &&
+        Math.abs(p.amount - next.amount) < 0.0001
+      ) {
+        return prev;
+      }
+      return [next];
+    });
+  }, [amountHT, amountTTC]);
 
   const onAmountHTChange = (text: string) => {
     setAmountHT(text);
-    lastAmountFieldRef.current = 'ht';
-    setVatDetails(prev => {
-      if (prev.length !== 1) return prev;
-      const ht = parseMoney(text);
-      if (ht === null) return prev;
-      const ttcField = parseMoney(amountTTC);
-      /* Si le TTC est déjà saisi : conserver TTC, TVA = TTC−HT, taux déduit */
-      if (ttcField !== null && ttcField >= ht - 0.001) {
-        const amount = roundMoney(Math.max(0, ttcField - ht));
-        const impliedRate =
-          ht > 0 && amount >= 0 ? roundMoney((100 * amount) / ht) : prev[0].rate;
-        return [{ rate: impliedRate > 0 ? impliedRate : prev[0].rate, base: ht, amount }];
-      }
-      const rate = prev[0].rate;
-      if (rate > 0) {
-        const amount = roundMoney(ht * (rate / 100));
-        const ttc = roundMoney(ht + amount);
-        setAmountTTC(ttc.toFixed(2));
-        return [{ rate, base: ht, amount }];
-      }
-      const ttc = ttcField;
-      if (ttc !== null) {
-        const amount = roundMoney(Math.max(0, ttc - ht));
-        return [{ rate: 0, base: ht, amount }];
-      }
-      return [{ ...prev[0], base: ht }];
-    });
   };
 
   const onAmountTTCChange = (text: string) => {
     setAmountTTC(text);
-    lastAmountFieldRef.current = 'ttc';
-    setVatDetails(prev => {
-      if (prev.length !== 1) return prev;
-      const ttc = parseMoney(text);
-      if (ttc === null) return prev;
-      const rate = prev[0].rate;
-      const htField = parseMoney(amountHT);
-      /* Si le HT saisi est valide et ≤ TTC : on le garde, TVA = TTC−HT, taux déduit */
-      if (htField !== null && ttc >= htField - 0.001) {
-        const amount = roundMoney(Math.max(0, ttc - htField));
-        const impliedRate =
-          htField > 0 && amount >= 0 ? roundMoney((100 * amount) / htField) : rate;
-        return [{ rate: impliedRate > 0 ? impliedRate : rate, base: htField, amount }];
-      }
-      if (rate > 0) {
-        const ht = roundMoney(ttc / (1 + rate / 100));
-        const amount = roundMoney(ttc - ht);
-        setAmountHT(ht.toFixed(2));
-        return [{ rate, base: ht, amount }];
-      }
-      if (htField !== null) {
-        const amount = roundMoney(Math.max(0, ttc - htField));
-        return [{ rate: 0, base: htField, amount }];
-      }
-      return prev;
-    });
-  };
-
-  const onVatRateFieldChange = (index: number, value: string) => {
-    if (vatDetails.length !== 1) {
-      updateVatDetail(index, 'rate', value);
-      return;
-    }
-    const r = parseMoney(value);
-    const rateNum = r !== null && r >= 0 ? r : 0;
-    setVatDetails(prev => {
-      if (prev.length !== 1) return prev;
-      if (lastAmountFieldRef.current === 'ttc') {
-        const ttc = parseMoney(amountTTC);
-        if (ttc !== null && rateNum > 0) {
-          const ht = roundMoney(ttc / (1 + rateNum / 100));
-          const amount = roundMoney(ttc - ht);
-          setAmountHT(ht.toFixed(2));
-          return [{ rate: rateNum, base: ht, amount }];
-        }
-        return [{ ...prev[0], rate: rateNum }];
-      }
-      const ht = parseMoney(amountHT);
-      if (ht !== null && rateNum > 0) {
-        const amount = roundMoney(ht * (rateNum / 100));
-        const ttc = roundMoney(ht + amount);
-        setAmountTTC(ttc.toFixed(2));
-        return [{ rate: rateNum, base: ht, amount }];
-      }
-      return [{ ...prev[0], rate: rateNum }];
-    });
   };
 
   const handleSubmit = async () => {
     const htVal = parseMoney(amountHT);
     const ttcVal = parseMoney(amountTTC);
     if (!receiptDateInput.trim() || !supplier || htVal === null || ttcVal === null) {
-      Alert.alert(t('common.error'), t('expense.submitError'));
+      showAppAlert(t('common.error'), t('expense.submitError'), 'error');
       return;
     }
 
     const receiptDateIso = dmyInputToIso(receiptDateInput);
     if (!receiptDateIso) {
-      Alert.alert(t('common.error'), t('expense.dateInvalid'));
+      showAppAlert(t('common.error'), t('expense.dateInvalid'), 'error');
       return;
     }
 
     if (category === 'other' && !description.trim()) {
-      Alert.alert(t('common.error'), t('expense.otherExplainRequired'));
+      showAppAlert(t('common.error'), t('expense.otherExplainRequired'), 'error');
       return;
     }
 
     if (!imageUri?.trim()) {
-      Alert.alert(t('common.error'), t('expense.receiptRequired'));
+      showAppAlert(t('common.error'), t('expense.receiptRequired'), 'error');
       return;
     }
 
     const ttc = ttcVal;
 
+    if (ttc + 0.001 < htVal) {
+      showAppAlert(t('common.error'), t('expense.ttcLessThanHt'), 'error');
+      return;
+    }
+
     if (ttc > FISCAL_ALERT_THRESHOLD) {
-      Alert.alert(
+      showAppAlert(
         t('alerts.fiscalTitle'),
         t('alerts.fiscalMessage', { threshold: FISCAL_ALERT_THRESHOLD })
       );
     }
 
-    const isDuplicate = await checkDuplicate(receiptDateIso, supplier, ttc);
+    const isDuplicate = await checkDuplicate(receiptDateIso, supplier, ttc, editingId ?? undefined);
     if (isDuplicate) {
-      const proceed = await new Promise<boolean>(resolve => {
-        Alert.alert(t('alerts.duplicateTitle'), t('alerts.duplicateMessage'), [
-          { text: t('common.cancel'), onPress: () => resolve(false) },
-          { text: t('alerts.continue'), onPress: () => resolve(true) },
-        ]);
-      });
+      const proceed = await showAppConfirm(
+        t('alerts.duplicateTitle'),
+        t('alerts.duplicateMessage'),
+        t('common.cancel'),
+        t('alerts.continue')
+      );
       if (!proceed) return;
     }
 
     setSaving(true);
     try {
-      const receiptUrl = await uploadReceiptImage(imageUri, profile.id);
-      if (!receiptUrl) {
-        Alert.alert(t('common.error'), t('expense.uploadReceiptFailed'));
-        return;
+      let receiptUrl: string | undefined;
+
+      if (editingId) {
+        if (imageUri && /^https?:\/\//i.test(imageUri.trim())) {
+          receiptUrl = imageUri.trim().split(/[?#]/)[0];
+        } else if (imageUri) {
+          const up = await uploadReceiptImage(imageUri, profile.id);
+          if (!up) {
+            showAppAlert(t('common.error'), t('expense.uploadReceiptFailed'), 'error');
+            return;
+          }
+          receiptUrl = up;
+        } else {
+          receiptUrl = initialReceiptUrl ?? undefined;
+        }
+        if (!receiptUrl?.trim()) {
+          showAppAlert(t('common.error'), t('expense.receiptRequired'), 'error');
+          return;
+        }
+
+        const { error } = await updateExpense(editingId, {
+          receipt_date: receiptDateIso,
+          supplier,
+          amount_ht: htVal,
+          amount_ttc: ttc,
+          vat_details: vatDetails,
+          category,
+          description: description || undefined,
+          receipt_image_url: receiptUrl,
+        });
+
+        if (error) throw error;
+        showAppAlert(
+          t('common.success'),
+          t('expense.updateSuccess'),
+          'success',
+          () => navigation.goBack()
+        );
+      } else {
+        const up = await uploadReceiptImage(imageUri!, profile.id);
+        if (!up) {
+          showAppAlert(t('common.error'), t('expense.uploadReceiptFailed'), 'error');
+          return;
+        }
+
+        const { error } = await createExpense({
+          receipt_date: receiptDateIso,
+          supplier,
+          amount_ht: htVal,
+          amount_ttc: ttc,
+          vat_details: vatDetails,
+          category,
+          description: description || undefined,
+          receipt_image_url: up,
+        });
+
+        if (error) throw error;
+        showAppAlert(
+          t('common.success'),
+          t('expense.submitSuccess'),
+          'success',
+          () => navigation.goBack()
+        );
       }
-
-      const { error } = await createExpense({
-        receipt_date: receiptDateIso,
-        supplier,
-        amount_ht: htVal,
-        amount_ttc: ttc,
-        vat_details: vatDetails,
-        category,
-        description: description || undefined,
-        receipt_image_url: receiptUrl,
-      });
-
-      if (error) throw error;
-      Alert.alert(t('common.success'), t('expense.submitSuccess'));
-      navigation.goBack();
     } catch {
-      Alert.alert(t('common.error'), t('expense.submitError'));
+      showAppAlert(t('common.error'), t('expense.submitError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -346,25 +411,35 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-gray-50"
+      className="flex-1 bg-surface"
     >
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
-        <View className="bg-primary-600 pt-14 pb-6 px-6 rounded-b-3xl">
-          <View className="flex-row items-center gap-4">
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Text className="text-white text-lg">← {t('common.back')}</Text>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 48 }}>
+        <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+          <View
+            className="bg-white rounded-[28px] px-5 py-5 border border-gray-100/80 shadow-sm"
+            style={{
+              shadowColor: theme.brandPrimary,
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.06,
+              shadowRadius: 20,
+              elevation: 4,
+            }}
+          >
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
+              <Text className="text-primary-600 text-base font-bold">← {t('common.back')}</Text>
             </TouchableOpacity>
-            <Text className="text-white text-xl font-bold flex-1">
-              {t('employee.newExpense')}
+            <Text className="text-gray-900 text-2xl font-bold mt-3 leading-tight">
+              {editingId ? t('employee.editExpense') : t('employee.newExpense')}
             </Text>
+            <Text className="text-gray-400 text-sm mt-2">{t('employee.scanReceipt')}</Text>
           </View>
         </View>
 
-        <View className="px-4 mt-6">
+        <View className="px-5 mt-5">
           {/* Image capture buttons */}
           <View className="flex-row gap-3 mb-4">
             <TouchableOpacity
-              className="flex-1 bg-white border border-gray-200 rounded-2xl py-4 items-center"
+              className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
               onPress={handleTakePhoto}
             >
               <Text className="text-2xl mb-1">📸</Text>
@@ -373,7 +448,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 bg-white border border-gray-200 rounded-2xl py-4 items-center"
+              className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
               onPress={handlePickImage}
             >
               <Text className="text-2xl mb-1">📁</Text>
@@ -383,21 +458,34 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Justificatif : ligne compacte (aperçu plein écran au toucher) */}
+          {/* Justificatif : menu voir / remplacer ; miniature via URL signée si besoin */}
           {imageUri && (
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setReceiptPreviewOpen(true)}
+              onPress={() => setReceiptMenuVisible(true)}
               accessibilityRole="button"
-              accessibilityLabel={t('employee.tapToViewFullReceipt')}
+              accessibilityLabel={`${t('employee.receiptMenuTitle')}. ${t('employee.receiptAttachedHint')}`}
               style={styles.receiptCompactCard}
             >
               <View style={styles.receiptCompactThumb}>
-                <Image
-                  source={{ uri: imageUri }}
-                  style={styles.receiptCompactImage}
-                  resizeMode="contain"
-                />
+                {receiptUriLoading ? (
+                  <View className="flex-1 items-center justify-center bg-surface">
+                    <ActivityIndicator color={theme.brandPrimary} />
+                  </View>
+                ) : receiptImageError ? (
+                  <View className="flex-1 items-center justify-center bg-surface px-1">
+                    <Text className="text-[10px] text-red-600 text-center leading-3">
+                      {t('expense.receiptLoadError')}
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: receiptDisplayUri ?? imageUri }}
+                    style={styles.receiptCompactImage}
+                    resizeMode="cover"
+                    onError={() => setReceiptImageError(true)}
+                  />
+                )}
               </View>
               <View className="flex-1 ml-3 min-w-0">
                 <Text className="text-gray-900 font-semibold text-sm">
@@ -412,14 +500,14 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           )}
 
           {analyzing && (
-            <View className="bg-primary-50 rounded-2xl p-4 mb-4 flex-row items-center gap-3">
-              <ActivityIndicator color="#2563eb" />
+            <View className="bg-primary-50 rounded-[22px] p-4 mb-4 flex-row items-center gap-3 border border-primary-100">
+              <ActivityIndicator color={theme.brandPrimary} />
               <Text className="text-primary-700 font-medium">{t('employee.analyzing')}</Text>
             </View>
           )}
 
           {/* Form */}
-          <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-100">
+          <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
             <View className="mb-4">
               <Text className="text-gray-700 font-medium mb-1.5">{t('expense.date')}</Text>
               <TextInput
@@ -480,87 +568,45 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             )}
           </View>
 
-          {/* VAT Details */}
-          <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-100">
-            <Text className="text-gray-900 font-bold text-base mb-3">{t('expense.vat')}</Text>
-            {vatDetails.map((vat, index) => (
-              <View key={index} className="flex-row gap-2 mb-3 items-end">
-                <View className="flex-1">
-                  <Text className="text-gray-500 text-xs mb-1">{t('expense.vatRate')} %</Text>
-                  <TextInput
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900"
-                    value={vat.rate.toString()}
-                    onChangeText={v => onVatRateFieldChange(index, v)}
-                    keyboardType="decimal-pad"
-                  />
+          {/* TVA : uniquement calculée depuis HT + TTC */}
+          <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
+            <Text className="text-gray-900 font-bold text-base mb-1">{t('expense.vat')}</Text>
+            <Text className="text-gray-500 text-xs mb-4 leading-4">{t('expense.vatAutoExplanation')}</Text>
+            {vatDetails[0] && (
+              <View className="bg-surface rounded-2xl border border-gray-100 p-4">
+                <View className="flex-row justify-between py-2 border-b border-gray-100">
+                  <Text className="text-gray-500 text-sm">{t('expense.vatBase')}</Text>
+                  <Text className="text-gray-900 font-semibold text-sm">
+                    {roundMoney(vatDetails[0].base).toFixed(2)} €
+                  </Text>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-gray-500 text-xs mb-1">{t('expense.vatBase')}</Text>
-                  <TextInput
-                    className={`border border-gray-200 rounded-xl px-3 py-2.5 text-sm ${
-                      vatDetails.length === 1 ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-900'
-                    }`}
-                    value={
-                      vatDetails.length === 1
-                        ? roundMoney(vat.base).toFixed(2)
-                        : Number.isFinite(vat.base)
-                          ? String(vat.base)
-                          : '0'
-                    }
-                    onChangeText={v => updateVatDetail(index, 'base', v)}
-                    keyboardType="decimal-pad"
-                    editable={vatDetails.length > 1}
-                  />
+                <View className="flex-row justify-between py-2 border-b border-gray-100">
+                  <Text className="text-gray-500 text-sm">{t('expense.vatAmount')}</Text>
+                  <Text className="text-gray-900 font-semibold text-sm">
+                    {roundMoney(vatDetails[0].amount).toFixed(2)} €
+                  </Text>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-gray-500 text-xs mb-1">{t('expense.vatAmount')}</Text>
-                  <TextInput
-                    className={`border border-gray-200 rounded-xl px-3 py-2.5 text-sm ${
-                      vatDetails.length === 1 ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-900'
-                    }`}
-                    value={
-                      vatDetails.length === 1
-                        ? roundMoney(vat.amount).toFixed(2)
-                        : Number.isFinite(vat.amount)
-                          ? String(vat.amount)
-                          : '0'
-                    }
-                    onChangeText={v => updateVatDetail(index, 'amount', v)}
-                    keyboardType="decimal-pad"
-                    editable={vatDetails.length > 1}
-                  />
+                <View className="flex-row justify-between py-2">
+                  <Text className="text-gray-500 text-sm">{t('expense.vatEquivalentRate')}</Text>
+                  <Text className="text-primary-600 font-bold text-sm">
+                    {roundMoney(vatDetails[0].rate).toFixed(2)} %
+                  </Text>
                 </View>
-                {vatDetails.length > 1 && (
-                  <TouchableOpacity
-                    className="bg-red-50 rounded-xl px-3 py-2.5"
-                    onPress={() => removeVatRate(index)}
-                  >
-                    <Text className="text-red-500 text-sm">✕</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-            ))}
-            <TouchableOpacity
-              className="border border-dashed border-primary-300 rounded-xl py-2.5 items-center mt-1"
-              onPress={addVatRate}
-            >
-              <Text className="text-primary-600 font-medium text-sm">
-                + {t('expense.addVatRate')}
-              </Text>
-            </TouchableOpacity>
+            )}
           </View>
 
           {/* Category */}
-          <View className="bg-white rounded-2xl p-4 mb-6 border border-gray-100">
+          <View className="bg-white rounded-[22px] p-5 mb-6 border border-gray-100 shadow-sm">
             <Text className="text-gray-900 font-bold text-base mb-3">{t('expense.category')}</Text>
             <View className="flex-row flex-wrap gap-3">
               {categories.map(c => (
                 <TouchableOpacity
                   key={c.value}
-                  className={`min-w-[44%] flex-1 py-4 rounded-xl items-center border ${
+                  className={`min-w-[44%] flex-1 py-4 rounded-2xl items-center border ${
                     category === c.value
                       ? 'bg-primary-50 border-primary-500'
-                      : 'bg-gray-50 border-gray-200'
+                      : 'bg-surface border-gray-100'
                   }`}
                   onPress={() => setCategory(c.value)}
                 >
@@ -596,33 +642,54 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
 
           {/* Submit */}
           <TouchableOpacity
-            className={`rounded-2xl py-4 items-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
+            className={`rounded-full py-4 items-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
             onPress={handleSubmit}
             disabled={saving}
+            style={
+              saving
+                ? undefined
+                : {
+                    shadowColor: theme.brandPrimary,
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.35,
+                    shadowRadius: 12,
+                    elevation: 8,
+                  }
+            }
           >
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white font-semibold text-base">{t('common.save')}</Text>
+              <Text className="text-white font-bold text-base">{t('common.save')}</Text>
             )}
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       <Modal
-        visible={receiptPreviewOpen && !!imageUri}
+        visible={receiptPreviewOpen && !!(receiptDisplayUri ?? imageUri)}
         animationType="fade"
         presentationStyle="fullScreen"
         onRequestClose={() => setReceiptPreviewOpen(false)}
       >
         <View className="flex-1 bg-black">
           <View
-            className="flex-row items-center justify-between px-4 pb-3 border-b border-gray-800"
+            className="flex-row items-center justify-end gap-2 px-3 pb-3 border-b border-gray-800 flex-wrap"
             style={{ paddingTop: Math.max(insets.top, 12) + 8 }}
           >
-            <Text className="text-white font-semibold text-base flex-1 pr-2">
+            <Text className="text-white font-semibold text-base flex-1 min-w-[120px] pr-2">
               {t('employee.receiptFullTitle')}
             </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setReceiptPreviewOpen(false);
+                setReceiptMenuVisible(true);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              className="py-2 px-3 bg-gray-800 rounded-lg"
+            >
+              <Text className="text-amber-300 font-medium text-sm">{t('employee.receiptReplace')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setReceiptPreviewOpen(false)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -644,9 +711,9 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             centerContent={Platform.OS === 'ios'}
             bouncesZoom
           >
-            {imageUri ? (
+            {receiptDisplayUri ?? imageUri ? (
               <Image
-                source={{ uri: imageUri }}
+                source={{ uri: (receiptDisplayUri ?? imageUri) as string }}
                 style={{ width: windowWidth, height: receiptDisplayHeight }}
                 resizeMode="contain"
                 onLoad={e => {
@@ -660,6 +727,92 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal
+        visible={receiptMenuVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setReceiptMenuVisible(false)}
+      >
+        <View className="flex-1 justify-end">
+          <Pressable
+            className="absolute inset-0 bg-black/45"
+            onPress={() => setReceiptMenuVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.cancel')}
+          />
+          <View
+            className="bg-white rounded-t-[28px] border-t border-gray-100"
+            style={{
+              paddingBottom: Math.max(insets.bottom, 20) + 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.06,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
+            <View className="items-center pt-3 pb-1">
+              <View className="w-9 h-1 rounded-full bg-gray-200" />
+            </View>
+            <View className="px-5 pt-4">
+              <Text className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">
+                {t('employee.receiptMenuSubtitle')}
+              </Text>
+              <Text className="text-2xl font-bold text-gray-900 leading-8">{t('employee.receiptMenuTitle')}</Text>
+            </View>
+            <View className="h-px bg-gray-200/90 mx-5 mt-5 mb-3" />
+            <View className="mx-5 rounded-[20px] border border-gray-100 bg-surface overflow-hidden">
+              <TouchableOpacity
+                className={`flex-row items-center px-4 py-4 border-b border-gray-100/90 ${receiptUriLoading ? 'opacity-45' : 'active:bg-white'}`}
+                disabled={receiptUriLoading}
+                onPress={() => {
+                  setReceiptMenuVisible(false);
+                  setReceiptPreviewOpen(true);
+                }}
+              >
+                <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
+                  <Ionicons name="expand-outline" size={22} color={theme.brandPrimary} />
+                </View>
+                <Text className="ml-3 flex-1 text-[15px] font-medium text-gray-800 leading-5">
+                  {t('employee.receiptMenuViewFull')}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-row items-center px-4 py-4 border-b border-gray-100/90 active:bg-white"
+                onPress={() => void handlePickImage()}
+              >
+                <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
+                  <Ionicons name="images-outline" size={22} color={theme.brandPrimary} />
+                </View>
+                <Text className="ml-3 flex-1 text-[15px] font-medium text-gray-800 leading-5">
+                  {t('employee.receiptMenuGallery')}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-row items-center px-4 py-4 active:bg-white"
+                onPress={() => void handleTakePhoto()}
+              >
+                <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
+                  <Ionicons name="camera-outline" size={22} color={theme.brandPrimary} />
+                </View>
+                <Text className="ml-3 flex-1 text-[15px] font-medium text-gray-800 leading-5">
+                  {t('employee.receiptMenuCamera')}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              className="mx-5 mt-5 border border-gray-200 rounded-full py-3.5 items-center bg-white active:bg-gray-50"
+              onPress={() => setReceiptMenuVisible(false)}
+            >
+              <Text className="text-[15px] font-semibold text-gray-700">{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -669,23 +822,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#f1f5f9',
     backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: theme.brandPrimary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   receiptCompactThumb: {
     width: 64,
     height: 64,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    backgroundColor: '#F5F6FA',
     overflow: 'hidden',
   },
   receiptCompactImage: {
@@ -716,7 +869,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#2563eb',
+    backgroundColor: theme.brandPrimary,
   },
   cancelCam: {
     marginTop: 16,

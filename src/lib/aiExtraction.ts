@@ -1,11 +1,23 @@
-import { readAsStringAsync } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { AI_API_URL, AI_API_KEY, AI_MODEL } from '../config/constants';
+import { supabase } from '../config/supabase';
 import { AIExtractionResult, VatDetail } from '../types';
 
 /** Groq limite ~4 Mo pour les requêtes base64 ; on reste largement en dessous. */
 const MAX_B64_CHARS = 3_000_000;
+
+const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt image and return ONLY valid JSON:
+{
+  "date": "YYYY-MM-DD",
+  "supplier": "string",
+  "amount_ht": number (amount excluding tax),
+  "amount_ttc": number (total amount including tax),
+  "vat_details": [{"rate": number, "base": number, "amount": number}],
+  "confidence": number (0-1)
+}
+Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu". Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
 
 /**
  * ImagePicker / Camera peuvent fournir du base64 directement.
@@ -134,11 +146,43 @@ function parseAiJsonContent(content: string): AIExtractionResult {
   return normalizeExtraction(parsed);
 }
 
+type EdgeExtractResponse = { content?: string; error?: string };
+
+/**
+ * Sur le web, l’API Groq est en général bloquée par CORS : appel à la Edge Function `extract-receipt`.
+ * Déployer : `supabase secrets set GROQ_API_KEY=gsk_...` puis `supabase functions deploy extract-receipt`
+ */
+async function extractViaEdgeFunction(
+  base64: string,
+  mime: string
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke<EdgeExtractResponse>(
+    'extract-receipt',
+    { body: { base64, mime } }
+  );
+
+  if (error) {
+    throw new Error(
+      error.message ||
+        'Fonction extract-receipt indisponible. Déployez la Edge Function (voir README).'
+    );
+  }
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+  const content = data?.content ?? '';
+  if (!content) {
+    throw new Error('Réponse vide du service d’analyse.');
+  }
+  return content;
+}
+
 export const extractReceiptData = async (
   imageUri: string,
   inlineBase64?: string | null
 ): Promise<AIExtractionResult> => {
-  if (!AI_API_KEY?.trim()) {
+  /* Sur iOS/Android la clé est utilisée en direct ; sur le web, Groq passe par Supabase (secret GROQ_API_KEY). */
+  if (Platform.OS !== 'web' && !AI_API_KEY?.trim()) {
     throw new Error(
       'Clé Groq manquante : ajoutez EXPO_PUBLIC_GROQ_API_KEY dans .env (voir .env.example).'
     );
@@ -146,53 +190,47 @@ export const extractReceiptData = async (
 
   const { base64, mime } = await prepareImageForGroq(imageUri, inlineBase64);
 
-  const response = await fetch(AI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${AI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: AI_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a receipt data extraction assistant. Extract the following from the receipt image and return ONLY valid JSON:
-{
-  "date": "YYYY-MM-DD",
-  "supplier": "string",
-  "amount_ht": number (amount excluding tax),
-  "amount_ttc": number (total amount including tax),
-  "vat_details": [{"rate": number, "base": number, "amount": number}],
-  "confidence": number (0-1)
-}
-Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu". Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`,
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Extract the data from this receipt:' },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mime};base64,${base64}` },
-            },
-          ],
-        },
-      ],
-      max_tokens: 700,
-    }),
-  });
+  let content: string;
 
-  const result = await response.json();
+  if (Platform.OS === 'web') {
+    content = await extractViaEdgeFunction(base64, mime);
+  } else {
+    const response = await fetch(AI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${AI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract the data from this receipt:' },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mime};base64,${base64}` },
+              },
+            ],
+          },
+        ],
+        max_tokens: 700,
+      }),
+    });
 
-  if (!response.ok) {
-    const msg = result?.error?.message ?? response.statusText ?? JSON.stringify(result);
-    throw new Error(msg);
-  }
+    const result = await response.json();
 
-  const content = result.choices?.[0]?.message?.content ?? '';
-  if (!content) {
-    throw new Error('Réponse vide du modèle.');
+    if (!response.ok) {
+      const msg = result?.error?.message ?? response.statusText ?? JSON.stringify(result);
+      throw new Error(msg);
+    }
+
+    content = result.choices?.[0]?.message?.content ?? '';
+    if (!content) {
+      throw new Error('Réponse vide du modèle.');
+    }
   }
 
   return parseAiJsonContent(content);

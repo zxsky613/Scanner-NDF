@@ -32,16 +32,16 @@ export const AuthLanguagePicker: React.FC = () => {
             accessibilityState={{ selected: active }}
             accessibilityLabel={`${t('auth.chooseLanguage')}: ${label}`}
             onPress={() => changeLanguage(code)}
-            className={`px-2 py-1 rounded-md border ${
+            className={`px-3 py-1.5 rounded-full border ${
               active
-                ? 'bg-primary-50 border-primary-200'
-                : 'bg-white/80 border-gray-200'
+                ? 'bg-primary-600 border-primary-600'
+                : 'bg-white border-gray-100'
             }`}
             activeOpacity={0.7}
           >
             <Text
-              className={`text-[11px] font-medium ${
-                active ? 'text-primary-700' : 'text-gray-400'
+              className={`text-[11px] font-bold ${
+                active ? 'text-white' : 'text-gray-400'
               }`}
             >
               {label}

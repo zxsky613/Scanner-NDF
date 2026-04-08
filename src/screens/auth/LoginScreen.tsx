@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
 import { showAppAlert } from '../../utils/alert';
+import { theme } from '../../config/theme';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -27,7 +28,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      showAppAlert(t('auth.popupLoginIncompleteTitle'), t('auth.popupLoginIncompleteBody'));
+      showAppAlert(t('auth.popupLoginIncompleteTitle'), t('auth.popupLoginIncompleteBody'), 'error');
       return;
     }
     setLoading(true);
@@ -58,7 +59,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
         } else if (!code || code === 'Invalid login credentials') {
           detail = t('auth.loginError');
         }
-        showAppAlert(t('auth.loginFailedTitle'), detail);
+        showAppAlert(t('auth.loginFailedTitle'), detail, 'error');
       }
     } finally {
       setLoading(false);
@@ -68,7 +69,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 relative bg-white"
+      className="flex-1 relative bg-surface"
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
@@ -77,13 +78,22 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
         <View className="flex-1 justify-center px-8 pb-12 w-full items-center">
           <View className="w-full max-w-md self-center">
             <View className="items-center mb-10">
-              <View className="w-20 h-20 bg-primary-600 rounded-2xl items-center justify-center mb-4">
+              <View
+                className="w-24 h-24 bg-primary-600 rounded-full items-center justify-center mb-5 shadow-lg"
+                style={{
+                  shadowColor: theme.brandPrimary,
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 16,
+                  elevation: 12,
+                }}
+              >
                 <Text className="text-white text-3xl font-bold">NF</Text>
               </View>
-              <Text className="text-3xl font-bold text-gray-900">
+              <Text className="text-3xl font-bold text-gray-900 tracking-tight">
                 {t('common.appName')}
               </Text>
-              <Text className="text-gray-500 mt-2 text-base">
+              <Text className="text-gray-400 mt-2 text-base">
                 {t('auth.loginTitle')}
               </Text>
             </View>
@@ -91,7 +101,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
             <View className="mb-4 w-full">
               <Text className="text-gray-700 font-medium mb-2">{t('auth.email')}</Text>
               <TextInput
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-4 text-base text-gray-900"
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('auth.email')}
@@ -104,7 +114,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
             <View className="mb-6 w-full">
               <Text className="text-gray-700 font-medium mb-2">{t('auth.password')}</Text>
               <TextInput
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-base text-gray-900"
+                className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-4 text-base text-gray-900"
                 value={password}
                 onChangeText={setPassword}
                 placeholder={t('auth.password')}
@@ -113,14 +123,25 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
             </View>
 
             <TouchableOpacity
-              className={`w-full rounded-xl py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}
+              className={`w-full rounded-full py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}
               onPress={handleLogin}
               disabled={loading}
+              style={
+                loading
+                  ? undefined
+                  : {
+                      shadowColor: theme.brandPrimary,
+                      shadowOffset: { width: 0, height: 10 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 14,
+                      elevation: 8,
+                    }
+              }
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-white font-semibold text-base">
+                <Text className="text-white font-bold text-base">
                   {t('auth.login')}
                 </Text>
               )}

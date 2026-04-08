@@ -91,14 +91,23 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     return { data, error };
   };
 
-  const checkDuplicate = async (date: string, supplier: string, amountTtc: number): Promise<boolean> => {
-    const { data } = await supabase
+  const checkDuplicate = async (
+    date: string,
+    supplier: string,
+    amountTtc: number,
+    excludeExpenseId?: string
+  ): Promise<boolean> => {
+    let q = supabase
       .from('expenses')
       .select('id')
       .eq('receipt_date', date)
       .ilike('supplier', supplier)
       .eq('amount_ttc', amountTtc)
       .limit(1);
+    if (excludeExpenseId) {
+      q = q.neq('id', excludeExpenseId);
+    }
+    const { data } = await q;
     return (data?.length ?? 0) > 0;
   };
 
@@ -138,12 +147,57 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     return { error };
   };
 
+  const updateExpense = async (
+    expenseId: string,
+    expense: {
+      receipt_date: string;
+      supplier: string;
+      amount_ht: number;
+      amount_ttc: number;
+      vat_details: VatDetail[];
+      category: ExpenseCategory;
+      description?: string;
+      receipt_image_url?: string;
+    }
+  ) => {
+    if (!userId) return { error: new Error('Not authenticated') };
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .update({
+        receipt_date: expense.receipt_date,
+        supplier: expense.supplier,
+        amount_ht: expense.amount_ht,
+        amount_ttc: expense.amount_ttc,
+        vat_details: expense.vat_details,
+        category: expense.category,
+        description: expense.description,
+        receipt_image_url: expense.receipt_image_url,
+        accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],
+        is_fiscal_alert: expense.amount_ttc > FISCAL_ALERT_THRESHOLD,
+      })
+      .eq('id', expenseId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (!error && data) {
+      setExpenses(prev =>
+        prev.map(e =>
+          e.id === expenseId ? { ...(data as Expense), profiles: e.profiles } : e
+        )
+      );
+    }
+    return { data, error };
+  };
+
   return {
     expenses,
     loading,
     fetchExpenses,
     createExpense,
     checkDuplicate,
+    updateExpense,
     updateExpenseStatus,
     deleteExpense,
   };
