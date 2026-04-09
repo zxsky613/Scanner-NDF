@@ -3,12 +3,21 @@ import { supabase } from '../config/supabase';
 import { Expense, ExpenseFilters, ExpenseCategory, VatDetail, CATEGORY_ACCOUNTING_CODES } from '../types';
 import { FISCAL_ALERT_THRESHOLD } from '../config/constants';
 
+export type FetchExpensesResult = { ok: true; count: number } | { ok: false };
+
+function sortExpensesByCreatedAtDesc(a: Expense, b: Expense): number {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
 export const useExpenses = (userId?: string, isAdmin = false) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(false);
+  /** Uniquement pour le geste « tirer pour actualiser », pas pour le rechargement au focus. */
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchExpenses = useCallback(async (filters?: ExpenseFilters) => {
-    setLoading(true);
+  const fetchExpenses = useCallback(
+    async (filters?: ExpenseFilters, opts?: { pull?: boolean }): Promise<FetchExpensesResult> => {
+    const pull = opts?.pull === true;
+    if (pull) setRefreshing(true);
     try {
       /* Pas d’embed expenses→profiles (deux FK → PGRST201). Deux requêtes + fusion. */
       let query = supabase
@@ -34,6 +43,10 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       if (filters?.date_to) {
         query = query.lte('receipt_date', filters.date_to);
       }
+      const supplierQ = filters?.supplier_search?.trim();
+      if (supplierQ) {
+        query = query.ilike('supplier', `%${supplierQ}%`);
+      }
 
       const { data: rows, error } = await query;
       if (error) throw error;
@@ -52,23 +65,34 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
         }
       }
 
-      const merged: Expense[] = list.map(row => ({
-        ...row,
-        profiles: profileById[row.user_id]
-          ? (profileById[row.user_id] as Expense['profiles'])
-          : undefined,
-      }));
+      const merged: Expense[] = list
+        .map(row => {
+          const r = row as Expense & { city?: string | null };
+          return {
+            ...r,
+            city: typeof r.city === 'string' ? r.city : '',
+            profiles: profileById[row.user_id]
+              ? (profileById[row.user_id] as Expense['profiles'])
+              : undefined,
+          };
+        })
+        .sort(sortExpensesByCreatedAtDesc);
       setExpenses(merged);
+      return { ok: true, count: merged.length };
     } catch (err) {
       console.error('Fetch expenses error:', err);
+      return { ok: false };
     } finally {
-      setLoading(false);
+      if (pull) setRefreshing(false);
     }
-  }, [userId, isAdmin]);
+  },
+  [userId, isAdmin]
+);
 
   const createExpense = async (expense: {
     receipt_date: string;
     supplier: string;
+    city: string;
     amount_ht: number;
     amount_ttc: number;
     vat_details: VatDetail[];
@@ -152,6 +176,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     expense: {
       receipt_date: string;
       supplier: string;
+      city: string;
       amount_ht: number;
       amount_ttc: number;
       vat_details: VatDetail[];
@@ -167,6 +192,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       .update({
         receipt_date: expense.receipt_date,
         supplier: expense.supplier,
+        city: expense.city,
         amount_ht: expense.amount_ht,
         amount_ttc: expense.amount_ttc,
         vat_details: expense.vat_details,
@@ -193,7 +219,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
 
   return {
     expenses,
-    loading,
+    refreshing,
     fetchExpenses,
     createExpense,
     checkDuplicate,

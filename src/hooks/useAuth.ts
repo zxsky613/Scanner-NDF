@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
+import { getSignupEmailRedirectTo, handleSupabaseAuthDeepLink } from '../lib/authDeepLink';
 import { Profile, UserRole } from '../types';
 import type { Session } from '@supabase/supabase-js';
 
@@ -42,6 +44,17 @@ export const useAuth = () => {
       .maybeSingle();
     if (error) return null;
     return data as Profile | null;
+  }, []);
+
+  useEffect(() => {
+    const onUrl = ({ url }: { url: string }) => {
+      void handleSupabaseAuthDeepLink(url);
+    };
+    const sub = Linking.addEventListener('url', onUrl);
+    void Linking.getInitialURL().then(url => {
+      if (url) void handleSupabaseAuthDeepLink(url);
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -128,17 +141,14 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, fullName: string, role: UserRole = 'employee') => {
     try {
-      const origin =
-        typeof window !== 'undefined' && window.location?.origin
-          ? window.location.origin
-          : undefined;
+      const emailRedirectTo = getSignupEmailRedirectTo();
 
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { full_name: fullName, role },
-          ...(origin ? { emailRedirectTo: origin } : {}),
+          ...(emailRedirectTo ? { emailRedirectTo } : {}),
         },
       });
       return { error };
@@ -154,7 +164,9 @@ export const useAuth = () => {
     setState({ session: null, profile: null, loading: false });
   };
 
-  const isAdmin = state.profile?.role === 'manager' || state.profile?.role === 'finance';
+  /** Accès complet (Finance ou anciens comptes « manager » en base). */
+  const isAdmin =
+    state.profile?.role === 'finance' || state.profile?.role === 'manager';
 
   return {
     ...state,

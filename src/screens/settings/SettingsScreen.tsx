@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
 import { showAppConfirm } from '../../utils/alert';
 import { Profile, SupportedLanguage } from '../../types';
-import { theme, headerPaddingTop } from '../../config/theme';
+import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
+import { AppNameText } from '../../components/AppNameText';
+import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
+import { userRoleLabel } from '../../utils/userRoleLabel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
@@ -41,7 +44,24 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
     <ScrollView className="flex-1 bg-surface">
       <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
-          className="bg-white rounded-[28px] px-6 py-8 items-center border border-gray-100/80 shadow-sm"
+          className="rounded-[28px] px-6 py-6"
+          style={{
+            backgroundColor: theme.heroHeaderBg,
+            borderWidth: 1,
+            borderColor: theme.heroHeaderBorder,
+            ...heroHeaderShadow,
+          }}
+        >
+          <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+            {t('common.appName')}
+          </AppNameText>
+          <ScreenHeroTitle className="mt-2">{t('navTabs.settings')}</ScreenHeroTitle>
+        </View>
+      </View>
+
+      <View className="px-5 mt-4">
+        <View
+          className="bg-white rounded-[28px] px-6 py-8 items-center border border-gray-100/80 shadow-sm mb-5"
           style={{
             shadowColor: theme.brandPrimary,
             shadowOffset: { width: 0, height: 8 },
@@ -50,23 +70,28 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
             elevation: 4,
           }}
         >
-          <View className="w-24 h-24 bg-primary-600 rounded-full items-center justify-center mb-4 shadow-lg">
+          <View className="w-24 h-24 bg-ink rounded-full items-center justify-center mb-4 shadow-lg">
             <Text className="text-white text-4xl font-bold">
               {profile.full_name.charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Text className="text-gray-900 text-2xl font-bold text-center">{profile.full_name}</Text>
+          <Text
+            className="text-2xl font-bold text-center"
+            style={{ color: theme.brandInk }}
+          >
+            {profile.full_name}
+          </Text>
           <Text className="text-gray-400 text-sm mt-2 text-center">{profile.email}</Text>
           <View className="bg-primary-50 border border-primary-100 rounded-full px-5 py-1.5 mt-3">
-            <Text className="text-primary-700 text-sm font-bold capitalize">{profile.role}</Text>
+            <Text className="text-primary-700 text-sm font-bold">{userRoleLabel(profile.role, t)}</Text>
           </View>
         </View>
       </View>
 
-      <View className="px-5 mt-5">
+      <View className="px-5">
         {/* Language selector */}
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-bold text-base mb-4">
+          <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>
             {t('settings.language')}
           </Text>
           <View className="gap-2">
@@ -98,23 +123,30 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
 
         {/* Profile info */}
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-bold text-base mb-4">
+          <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>
             {t('settings.profile')}
           </Text>
           <InfoRow label={t('auth.fullName')} value={profile.full_name} />
           <InfoRow label={t('auth.email')} value={profile.email} />
-          <InfoRow label="Rôle" value={profile.role} />
+          <InfoRow label={t('auth.roleLabel')} value={userRoleLabel(profile.role, t)} />
           {profile.department && (
-            <InfoRow label="Département" value={profile.department} />
+            <InfoRow label={t('settings.department')} value={profile.department} />
           )}
         </View>
 
         {/* About */}
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-bold text-base mb-4">
+          <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>
             {t('settings.about')}
           </Text>
-          <InfoRow label={t('common.appName')} value="ExpenseApp" />
+          <InfoRow
+            label={t('settings.applicationLabel')}
+            value={
+              <AppNameText className="text-ink text-base">
+                {t('common.appName')}
+              </AppNameText>
+            }
+          />
           <InfoRow label={t('settings.version')} value="1.0.0" />
         </View>
 
@@ -130,9 +162,15 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
   );
 };
 
-const InfoRow = ({ label, value }: { label: string; value: string }) => (
+const InfoRow = ({ label, value }: { label: string; value: ReactNode }) => (
   <View className="flex-row justify-between py-3 border-b border-gray-50">
     <Text className="text-gray-500">{label}</Text>
-    <Text className="text-gray-900 font-medium">{value}</Text>
+    {typeof value === 'string' ? (
+      <Text className="font-medium" style={{ color: theme.brandInk }}>
+        {value}
+      </Text>
+    ) : (
+      <View className="max-w-[55%] items-end">{value}</View>
+    )}
   </View>
 );

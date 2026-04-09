@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "ExpenseApp",
-    "slug": "ExpenseApp",
+    "name": "DABAR's",
+    "slug": "dabars",
+    "scheme": "dabars",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2D5BFF"
+      "backgroundColor": "#F2F6F8"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,7 +23,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2D5BFF"
+        "backgroundColor": "#F2F6F8"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -37,13 +38,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow ExpenseApp to access your camera to scan receipts."
+          "cameraPermission": "Allow DABAR's to access your camera to scan receipts."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow ExpenseApp to access your photos to upload receipts."
+          "photosPermission": "Allow DABAR's to access your photos to upload receipts."
         }
       ],
       "expo-localization",

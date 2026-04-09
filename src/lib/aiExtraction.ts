@@ -3,6 +3,7 @@ import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { AI_API_URL, AI_API_KEY, AI_MODEL } from '../config/constants';
 import { supabase } from '../config/supabase';
+import i18n from '../i18n';
 import { AIExtractionResult, VatDetail } from '../types';
 
 /** Groq limite ~4 Mo pour les requêtes base64 ; on reste largement en dessous. */
@@ -12,12 +13,15 @@ const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the 
 {
   "date": "YYYY-MM-DD",
   "supplier": "string",
+  "city": "string",
   "amount_ht": number (amount excluding tax),
   "amount_ttc": number (total amount including tax),
   "vat_details": [{"rate": number, "base": number, "amount": number}],
   "confidence": number (0-1)
 }
-Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu". Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
+Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
+For "city": the city name where the purchase took place — infer from the address block, store footer, or postal line on the ticket (e.g. "Paris", "Lyon"). If no city is visible or inferable, use an empty string "".
+Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
 
 /**
  * ImagePicker / Camera peuvent fournir du base64 directement.
@@ -41,7 +45,7 @@ async function getImageBase64(
   if (Platform.OS === 'web') {
     const res = await fetch(uri);
     if (!res.ok) {
-      throw new Error(`Impossible de lire l'image (web): ${res.status}`);
+      throw new Error(i18n.t('errors.aiImageReadWeb', { status: String(res.status) }));
     }
     const blob = await res.blob();
     const mime =
@@ -90,9 +94,7 @@ async function prepareImageForGroq(
   } catch {
     const fallback = await getImageBase64(uri, inlineBase64);
     if (fallback.base64.length > MAX_B64_CHARS) {
-      throw new Error(
-        "Image trop lourde pour l'analyse. Reprenez la photo plus près du ticket."
-      );
+      throw new Error(i18n.t('errors.aiImageTooHeavy'));
     }
     return { base64: fallback.base64, mime: 'image/jpeg' };
   }
@@ -116,9 +118,15 @@ function normalizeExtraction(raw: unknown): AIExtractionResult {
   const ht = Number(p.amount_ht);
   const ttc = Number(p.amount_ttc);
 
+  const cityRaw = typeof p.city === 'string' ? p.city.trim() : '';
+
   return {
     date: typeof p.date === 'string' ? p.date : new Date().toISOString().slice(0, 10),
-    supplier: typeof p.supplier === 'string' && p.supplier.trim() ? p.supplier : 'Inconnu',
+    supplier:
+      typeof p.supplier === 'string' && p.supplier.trim()
+        ? p.supplier
+        : i18n.t('expense.unknownSupplier'),
+    city: cityRaw,
     amount_ht: Number.isFinite(ht) ? ht : 0,
     amount_ttc: Number.isFinite(ttc) ? ttc : 0,
     vat_details: vat,
@@ -133,14 +141,14 @@ function parseAiJsonContent(content: string): AIExtractionResult {
 
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('Réponse IA illisible (pas de JSON).');
+    throw new Error(i18n.t('errors.aiResponseNoJson'));
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new Error('Réponse IA invalide (JSON cassé).');
+    throw new Error(i18n.t('errors.aiResponseBadJson'));
   }
 
   return normalizeExtraction(parsed);
@@ -162,17 +170,14 @@ async function extractViaEdgeFunction(
   );
 
   if (error) {
-    throw new Error(
-      error.message ||
-        'Fonction extract-receipt indisponible. Déployez la Edge Function (voir README).'
-    );
+    throw new Error(error.message || i18n.t('errors.aiEdgeUnavailable'));
   }
   if (data?.error) {
     throw new Error(data.error);
   }
   const content = data?.content ?? '';
   if (!content) {
-    throw new Error('Réponse vide du service d’analyse.');
+    throw new Error(i18n.t('errors.aiEmptyAnalysisService'));
   }
   return content;
 }
@@ -183,9 +188,7 @@ export const extractReceiptData = async (
 ): Promise<AIExtractionResult> => {
   /* Sur iOS/Android la clé est utilisée en direct ; sur le web, Groq passe par Supabase (secret GROQ_API_KEY). */
   if (Platform.OS !== 'web' && !AI_API_KEY?.trim()) {
-    throw new Error(
-      'Clé Groq manquante : ajoutez EXPO_PUBLIC_GROQ_API_KEY dans .env (voir .env.example).'
-    );
+    throw new Error(i18n.t('errors.aiGroqKeyMissing'));
   }
 
   const { base64, mime } = await prepareImageForGroq(imageUri, inlineBase64);
@@ -229,7 +232,7 @@ export const extractReceiptData = async (
 
     content = result.choices?.[0]?.message?.content ?? '';
     if (!content) {
-      throw new Error('Réponse vide du modèle.');
+      throw new Error(i18n.t('errors.aiEmptyModelResponse'));
     }
   }
 

@@ -14,12 +14,15 @@ const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the 
 {
   "date": "YYYY-MM-DD",
   "supplier": "string",
+  "city": "string",
   "amount_ht": number (amount excluding tax),
   "amount_ttc": number (total amount including tax),
   "vat_details": [{"rate": number, "base": number, "amount": number}],
   "confidence": number (0-1)
 }
-Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu". Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
+Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
+For "city": city name where purchase occurred from address/footer on ticket; if unknown use "".
+Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

@@ -19,7 +19,8 @@ import { Expense, Profile } from '../../types';
 import { supabase } from '../../config/supabase';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
-import { theme, headerPaddingTop } from '../../config/theme';
+import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
+import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
@@ -139,13 +140,12 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     >
       <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
-          className="bg-white rounded-[28px] px-5 py-5 border border-gray-100/80 shadow-sm"
+          className="rounded-[28px] px-5 py-5"
           style={{
-            shadowColor: theme.brandPrimary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.06,
-            shadowRadius: 20,
-            elevation: 4,
+            backgroundColor: theme.heroHeaderBg,
+            borderWidth: 1,
+            borderColor: theme.heroHeaderBorder,
+            ...heroHeaderShadow,
           }}
         >
           <View className="flex-row items-center gap-3">
@@ -153,9 +153,9 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text className="text-primary-600 text-base font-bold">← {t('common.back')}</Text>
             </TouchableOpacity>
           </View>
-          <Text className="text-gray-900 text-2xl font-bold mt-3 leading-tight" numberOfLines={2}>
+          <ScreenHeroTitle variant="stack" className="mt-3" numberOfLines={2}>
             {expenseRow.supplier}
-          </Text>
+          </ScreenHeroTitle>
           <View className={`self-start px-3 py-1.5 rounded-full mt-3 ${status.bg}`}>
             <Text className={`text-xs font-bold ${status.text}`}>{t(status.label)}</Text>
           </View>
@@ -239,8 +239,16 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               value={(expenseRow.profiles as Profile).full_name}
             />
           )}
-          <InfoRow label={t('expense.date')} value={formatDate(expenseRow.receipt_date)} />
+          <InfoRow label={t('expense.receiptDate')} value={formatDate(expenseRow.receipt_date)} />
+          <InfoRow
+            label={t('expense.requestCreatedAt')}
+            value={expenseRow.created_at ? formatDate(expenseRow.created_at) : '—'}
+          />
           <InfoRow label={t('expense.supplier')} value={expenseRow.supplier} />
+          <InfoRow
+            label={t('expense.city')}
+            value={expenseRow.city?.trim() ? expenseRow.city : '—'}
+          />
           <InfoRow label={t('expense.category')} value={t(`expense.${expenseRow.category}`)} />
           {expenseRow.description && (
             <InfoRow label={t('expense.description')} value={expenseRow.description} />

@@ -5,12 +5,15 @@ const NotificationsContext = createContext<UseNotificationsResult | null>(null);
 
 export function NotificationsProvider({
   userId,
+  viewerIsReviewer = false,
   children,
 }: {
   userId: string;
+  /** Compte finance ou manager : alertes nouvelle/modif. note tant que la dépense est en attente. */
+  viewerIsReviewer?: boolean;
   children: React.ReactNode;
 }) {
-  const value = useNotifications(userId);
+  const value = useNotifications(userId, { viewerIsReviewer });
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 

@@ -65,6 +65,7 @@ CREATE TABLE expenses (
   receipt_image_url TEXT,
   receipt_date DATE NOT NULL,
   supplier TEXT NOT NULL,
+  city TEXT NOT NULL DEFAULT '',
   
   -- Amounts
   amount_ht NUMERIC(10,2) NOT NULL,

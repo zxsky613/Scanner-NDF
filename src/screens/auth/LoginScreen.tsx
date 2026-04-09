@@ -9,6 +9,8 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { BrandLogo } from '../../components/BrandLogo';
+import { AppNameText } from '../../components/AppNameText';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
@@ -78,22 +80,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
         <View className="flex-1 justify-center px-8 pb-12 w-full items-center">
           <View className="w-full max-w-md self-center">
             <View className="items-center mb-10">
-              <View
-                className="w-24 h-24 bg-primary-600 rounded-full items-center justify-center mb-5 shadow-lg"
-                style={{
-                  shadowColor: theme.brandPrimary,
-                  shadowOffset: { width: 0, height: 12 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 16,
-                  elevation: 12,
-                }}
-              >
-                <Text className="text-white text-3xl font-bold">NF</Text>
-              </View>
-              <Text className="text-3xl font-bold text-gray-900 tracking-tight">
+              <BrandLogo size={100} />
+              <AppNameText className="text-3xl text-ink tracking-[-0.02em] mt-1">
                 {t('common.appName')}
-              </Text>
-              <Text className="text-gray-400 mt-2 text-base">
+              </AppNameText>
+              <Text className="text-gray-400 mt-1 text-base">
                 {t('auth.loginTitle')}
               </Text>
             </View>

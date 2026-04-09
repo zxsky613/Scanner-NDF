@@ -1,4 +1,4 @@
-# ExpenseApp - Application de Notes de Frais
+# Dabar's — Application de notes de frais
 
 Application mobile multiplateforme (iOS/Android) de gestion de notes de frais avec scan intelligent de tickets de caisse.
 

@@ -1,4 +1,10 @@
-export type UserRole = 'employee' | 'manager' | 'finance';
+/** Rôles proposés à l’inscription et au métadonnées Supabase. */
+export type UserRole = 'employee' | 'finance';
+
+/** Ancien rôle encore présent en base / RLS (non proposé à l’inscription). */
+export type LegacyManagerRole = 'manager';
+
+export type StoredUserRole = UserRole | LegacyManagerRole;
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected';
 export type ExpenseCategory = 'food' | 'materials' | 'travel' | 'other';
 export type SupportedLanguage = 'fr' | 'en' | 'zh';
@@ -7,7 +13,7 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: UserRole;
+  role: StoredUserRole;
   department?: string;
   preferred_language: SupportedLanguage;
   created_at: string;
@@ -26,6 +32,8 @@ export interface Expense {
   receipt_image_url?: string;
   receipt_date: string;
   supplier: string;
+  /** Ville du lieu de dépense (saisie ou IA). */
+  city: string;
   amount_ht: number;
   amount_ttc: number;
   vat_details: VatDetail[];
@@ -47,6 +55,8 @@ export interface Expense {
 export interface AIExtractionResult {
   date: string;
   supplier: string;
+  /** Ville si lisible sur le ticket (adresse, en-tête magasin), sinon chaîne vide. */
+  city: string;
   amount_ht: number;
   amount_ttc: number;
   vat_details: VatDetail[];
@@ -59,6 +69,8 @@ export interface ExpenseFilters {
   employee_id?: string;
   date_from?: string;
   date_to?: string;
+  /** Filtre côté API : fournisseur contient cette chaîne (insensible à la casse). */
+  supplier_search?: string;
 }
 
 export type NotificationType =

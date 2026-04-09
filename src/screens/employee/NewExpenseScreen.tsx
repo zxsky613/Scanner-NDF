@@ -30,7 +30,8 @@ import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
 import { maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
 import { parseMoney, roundMoney } from '../../utils/money';
-import { theme, headerPaddingTop } from '../../config/theme';
+import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
+import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 
 interface Props {
@@ -88,6 +89,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   /** Affichage JJ/MM/AAAA (séparateurs auto) ; conversion ISO à l’enregistrement. */
   const [receiptDateInput, setReceiptDateInput] = useState('');
   const [supplier, setSupplier] = useState('');
+  const [city, setCity] = useState('');
   const [amountHT, setAmountHT] = useState('');
   const [amountTTC, setAmountTTC] = useState('');
   const [vatDetails, setVatDetails] = useState<VatDetail[]>([
@@ -139,6 +141,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     setInitialReceiptUrl(editExpense.receipt_image_url ?? null);
     setReceiptDateInput(isoToDmyInput(editExpense.receipt_date));
     setSupplier(editExpense.supplier);
+    setCity(editExpense.city?.trim() ? editExpense.city : '');
     setAmountHT(roundMoney(editExpense.amount_ht).toFixed(2));
     setAmountTTC(roundMoney(editExpense.amount_ttc).toFixed(2));
     setCategory(editExpense.category);
@@ -204,6 +207,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       const data = await extractReceiptData(uri, inlineBase64);
       setReceiptDateInput(isoToDmyInput(data.date));
       setSupplier(data.supplier);
+      if (data.city?.trim()) setCity(data.city.trim());
       const ht = roundMoney(data.amount_ht);
       const ttc = roundMoney(data.amount_ttc);
       setAmountHT(ht.toFixed(2));
@@ -273,6 +277,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       return;
     }
 
+    if (!city.trim()) {
+      showAppAlert(t('common.error'), t('expense.cityRequired'), 'error');
+      return;
+    }
+
     const receiptDateIso = dmyInputToIso(receiptDateInput);
     if (!receiptDateIso) {
       showAppAlert(t('common.error'), t('expense.dateInvalid'), 'error');
@@ -339,6 +348,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         const { error } = await updateExpense(editingId, {
           receipt_date: receiptDateIso,
           supplier,
+          city: city.trim(),
           amount_ht: htVal,
           amount_ttc: ttc,
           vat_details: vatDetails,
@@ -364,6 +374,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         const { error } = await createExpense({
           receipt_date: receiptDateIso,
           supplier,
+          city: city.trim(),
           amount_ht: htVal,
           amount_ttc: ttc,
           vat_details: vatDetails,
@@ -416,21 +427,20 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 48 }}>
         <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
           <View
-            className="bg-white rounded-[28px] px-5 py-5 border border-gray-100/80 shadow-sm"
+            className="rounded-[28px] px-5 py-5"
             style={{
-              shadowColor: theme.brandPrimary,
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.06,
-              shadowRadius: 20,
-              elevation: 4,
+              backgroundColor: theme.heroHeaderBg,
+              borderWidth: 1,
+              borderColor: theme.heroHeaderBorder,
+              ...heroHeaderShadow,
             }}
           >
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
               <Text className="text-primary-600 text-base font-bold">← {t('common.back')}</Text>
             </TouchableOpacity>
-            <Text className="text-gray-900 text-2xl font-bold mt-3 leading-tight">
+            <ScreenHeroTitle variant="stack" className="mt-3">
               {editingId ? t('employee.editExpense') : t('employee.newExpense')}
-            </Text>
+            </ScreenHeroTitle>
             <Text className="text-gray-400 text-sm mt-2">{t('employee.scanReceipt')}</Text>
           </View>
         </View>
@@ -509,7 +519,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           {/* Form */}
           <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
             <View className="mb-4">
-              <Text className="text-gray-700 font-medium mb-1.5">{t('expense.date')}</Text>
+              <Text className="text-gray-700 font-medium mb-1.5">{t('expense.receiptDate')}</Text>
               <TextInput
                 className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 value={receiptDateInput}
@@ -527,6 +537,17 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                 value={supplier}
                 onChangeText={setSupplier}
                 placeholder={t('expense.supplier')}
+              />
+            </View>
+
+            <View className="mb-4">
+              <Text className="text-gray-700 font-medium mb-1.5">{t('expense.city')}</Text>
+              <TextInput
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                value={city}
+                onChangeText={setCity}
+                placeholder={t('expense.cityPlaceholder')}
+                placeholderTextColor="#9ca3af"
               />
             </View>
 
@@ -660,7 +681,9 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white font-bold text-base">{t('common.save')}</Text>
+              <Text className="text-white font-bold text-base">
+                {editingId ? t('common.save') : t('employee.sendExpense')}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -759,7 +782,9 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               <Text className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">
                 {t('employee.receiptMenuSubtitle')}
               </Text>
-              <Text className="text-2xl font-bold text-gray-900 leading-8">{t('employee.receiptMenuTitle')}</Text>
+              <ScreenHeroTitle variant="stack" className="leading-8">
+                {t('employee.receiptMenuTitle')}
+              </ScreenHeroTitle>
             </View>
             <View className="h-px bg-gray-200/90 mx-5 mt-5 mb-3" />
             <View className="mx-5 rounded-[20px] border border-gray-100 bg-surface overflow-hidden">
@@ -838,7 +863,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 16,
-    backgroundColor: '#F5F6FA',
+    backgroundColor: theme.surface,
     overflow: 'hidden',
   },
   receiptCompactImage: {

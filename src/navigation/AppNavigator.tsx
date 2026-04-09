@@ -6,7 +6,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { Font } from '../config/fonts';
-import { Profile } from '../types';
+import { theme } from '../config/theme';
+import { Profile, UserRole } from '../types';
 import { NotificationsProvider, useNotificationsContext } from '../context/NotificationsContext';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
@@ -26,7 +27,7 @@ interface AuthNavigatorProps {
     email: string,
     password: string,
     fullName: string,
-    role: any
+    role: UserRole
   ) => Promise<{ error: any }>;
 }
 
@@ -93,16 +94,18 @@ const TAB_ICON_SZ = Platform.OS === 'android' ? 28 : 26;
 
 type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-const TAB_INK = '#000000';
-
 const TabIcon = ({ name, focused }: { name: TabIconName; focused: boolean }) => {
   return (
     <View
       className={`items-center justify-center rounded-full min-w-[52px] min-h-[44px] ${
-        focused ? 'bg-gray-100' : ''
+        focused ? 'bg-primary-50' : ''
       }`}
     >
-      <MaterialCommunityIcons name={name} size={TAB_ICON_SZ} color={TAB_INK} />
+      <MaterialCommunityIcons
+        name={name}
+        size={TAB_ICON_SZ}
+        color={focused ? theme.brandInk : theme.inkMuted}
+      />
     </View>
   );
 };
@@ -129,15 +132,15 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
           backgroundColor: '#FFFFFF',
           ...(Platform.OS === 'ios'
             ? {
-                shadowColor: '#2D5BFF',
+                shadowColor: theme.brandInk,
                 shadowOffset: { width: 0, height: -6 },
-                shadowOpacity: 0.12,
+                shadowOpacity: 0.1,
                 shadowRadius: 20,
               }
             : { elevation: 20 }),
         },
-        tabBarActiveTintColor: TAB_INK,
-        tabBarInactiveTintColor: TAB_INK,
+        tabBarActiveTintColor: theme.brandInk,
+        tabBarInactiveTintColor: theme.inkMuted,
         tabBarItemStyle: {
           paddingVertical: 4,
           minWidth: 56,
@@ -203,7 +206,10 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
 };
 
 export const MainNavigator: React.FC<MainNavigatorProps> = props => (
-  <NotificationsProvider userId={props.profile.id}>
+  <NotificationsProvider
+    userId={props.profile.id}
+    viewerIsReviewer={props.profile.role === 'finance' || props.profile.role === 'manager'}
+  >
     <MainNavigatorInner {...props} />
   </NotificationsProvider>
 );

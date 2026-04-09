@@ -10,12 +10,22 @@ import {
   ScrollView,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { UserRole } from '../../types';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
+import { BrandLogo } from '../../components/BrandLogo';
+import { AppNameText } from '../../components/AppNameText';
 import { showAppAlert } from '../../utils/alert';
 import { isEmailAlreadyRegisteredError } from '../../utils/authErrors';
-import { theme } from '../../config/theme';
+import { theme, headerPaddingTop } from '../../config/theme';
+import { FINANCE_REGISTRATION_ACCESS_CODE } from '../../config/financeRegistration';
+
+const REGISTER_ROLE_OPTIONS: UserRole[] = ['employee', 'finance'];
+const REGISTER_ROLE_ICONS: Record<UserRole, string> = {
+  employee: '👤',
+  finance: '💰',
+};
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -29,18 +39,19 @@ interface Props {
 
 export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('employee');
+  const [accessCode, setAccessCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const roles: { value: UserRole; label: string }[] = [
-    { value: 'employee', label: '👤 ' + t('admin.employee') },
-    { value: 'manager', label: '👔 Manager' },
-    { value: 'finance', label: '💰 Finance' },
-  ];
+  const setRoleAndResetCode = (r: UserRole) => {
+    setRole(r);
+    if (r === 'employee') setAccessCode('');
+  };
 
   const handleRegister = async () => {
     const given = firstName.trim();
@@ -55,6 +66,18 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
     if (password.length < 6) {
       showAppAlert(t('auth.popupPasswordTitle'), t('auth.popupPasswordBody'), 'error');
       return;
+    }
+
+    if (role === 'finance') {
+      const code = accessCode.trim();
+      if (!code) {
+        showAppAlert(t('auth.accessCodeMissingTitle'), t('auth.accessCodeMissingBody'), 'error');
+        return;
+      }
+      if (code !== FINANCE_REGISTRATION_ACCESS_CODE.trim()) {
+        showAppAlert(t('auth.invalidAccessCodeTitle'), t('auth.invalidAccessCodeBody'), 'error');
+        return;
+      }
     }
 
     const fullName = `${given} ${family}`;
@@ -89,14 +112,33 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 relative bg-surface"
     >
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        className="absolute left-5 z-10"
+        style={{ top: insets.top + 6 }}
+        hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.back')}
+      >
+        <Text className="text-primary-600 text-base font-bold">← {t('common.back')}</Text>
+      </TouchableOpacity>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          /** Sous l’îlot / encoche : évite de centrer verticalement un long formulaire (logo remonté). */
+          paddingTop: headerPaddingTop(insets.top) + 36,
+          paddingBottom: 24,
+        }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-1 justify-center px-8 pb-12 w-full items-center">
+        <View className="px-8 pb-12 w-full items-center">
           <View className="w-full max-w-md self-center">
             <View className="items-center mb-10">
-              <Text className="text-3xl font-bold text-gray-900">
+              <BrandLogo size={88} />
+              <AppNameText className="text-2xl text-ink text-center mt-1 tracking-[-0.02em]">
+                {t('common.appName')}
+              </AppNameText>
+              <Text className="text-lg font-semibold text-gray-600 mt-1 text-center">
                 {t('auth.registerTitle')}
               </Text>
             </View>
@@ -148,30 +190,46 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
               />
             </View>
 
-            <View className="mb-6 w-full">
+            <View className={`w-full ${role === 'finance' ? 'mb-4' : 'mb-6'}`}>
               <Text className="text-gray-700 font-medium mb-3">{t('auth.roleLabel')}</Text>
               <View className="flex-row gap-2 w-full">
-                {roles.map(r => (
+                {REGISTER_ROLE_OPTIONS.map(rValue => (
                   <TouchableOpacity
-                    key={r.value}
+                    key={rValue}
                     className={`flex-1 py-3.5 rounded-full items-center border ${
-                      role === r.value
+                      role === rValue
                         ? 'bg-primary-600 border-primary-600'
                         : 'bg-white border-gray-100'
                     }`}
-                    onPress={() => setRole(r.value)}
+                    onPress={() => setRoleAndResetCode(rValue)}
                   >
                     <Text
                       className={`font-medium text-sm ${
-                        role === r.value ? 'text-white' : 'text-gray-700'
+                        role === rValue ? 'text-white' : 'text-gray-700'
                       }`}
                     >
-                      {r.label}
+                      {`${REGISTER_ROLE_ICONS[rValue]} ${t(`roles.${rValue}`)}`}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
+
+            {role === 'finance' ? (
+              <View className="mb-6 w-full">
+                <Text className="text-gray-700 font-medium mb-2">{t('auth.accessCodeLabel')}</Text>
+                <TextInput
+                  className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900"
+                  value={accessCode}
+                  onChangeText={setAccessCode}
+                  placeholder={t('auth.accessCodePlaceholderFinance')}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                />
+                <Text className="text-gray-500 text-xs mt-2 leading-4">{t('auth.accessCodeHint')}</Text>
+              </View>
+            ) : null}
 
             <TouchableOpacity
               className={`w-full rounded-full py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}

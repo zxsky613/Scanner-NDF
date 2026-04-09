@@ -3,12 +3,13 @@ import { Platform } from 'react-native';
 import { supabase } from '../config/supabase';
 import { STORAGE_BUCKET } from '../config/constants';
 import { decode } from 'base64-arraybuffer';
+import i18n from '../i18n';
 
 async function imageUriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'web') {
     const res = await fetch(uri);
     if (!res.ok) {
-      throw new Error(`Lecture image impossible (${res.status})`);
+      throw new Error(i18n.t('errors.storageImageRead', { status: String(res.status) }));
     }
     return await res.arrayBuffer();
   }

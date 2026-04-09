@@ -10,9 +10,10 @@ export const exportToExcel = async (expenses: Expense[]): Promise<void> => {
   const t = i18n.t.bind(i18n);
 
   const data = expenses.map(e => ({
-    [t('expense.date')]: formatDate(e.receipt_date),
+    [t('expense.receiptDate')]: formatDate(e.receipt_date),
     [t('expense.supplier')]: e.supplier,
-    [t('admin.employee')]: (e.profiles as any)?.full_name ?? e.user_id,
+    [t('expense.city')]: e.city?.trim() ? e.city : '',
+    [t('roles.employee')]: (e.profiles as any)?.full_name ?? e.user_id,
     [t('expense.amountHT')]: e.amount_ht,
     [t('expense.vat')]: (e.vat_details ?? [])
       .map(v => `${v.rate}%: ${v.amount}`)

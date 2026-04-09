@@ -11,7 +11,8 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,10 +29,14 @@ import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { exportToExcel } from '../../utils/excelExport';
 import { buildPeriodMarkings } from '../../utils/calendarRange';
 import { supabase } from '../../config/supabase';
-import { theme, headerPaddingTop } from '../../config/theme';
+import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
+import { userRoleLabel } from '../../utils/userRoleLabel';
+import { AppNameText } from '../../components/AppNameText';
+import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../i18n';
 import { showAppAlert } from '../../utils/alert';
+import { syncCalendarLocale } from '../../utils/calendarLocales';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -47,43 +52,18 @@ const categoryOptions: (ExpenseCategory | 'all')[] = [
   'other',
 ];
 
-type XLocale = {
-  monthNames: string[];
-  monthNamesShort: string[];
-  dayNames: string[];
-  dayNamesShort: string[];
-  amDesignator: string;
-  pmDesignator: string;
-};
+type DashboardListRow =
+  | { kind: 'header'; section: 'pending' | 'processed'; count: number }
+  | { kind: 'expense'; item: Expense };
 
-const FR_CAL: XLocale = {
-  monthNames: [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-  ],
-  monthNamesShort: ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'],
-  dayNames: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
-  dayNamesShort: ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'],
-  amDesignator: 'AM',
-  pmDesignator: 'PM',
-};
-
-const ZH_CAL: XLocale = {
-  monthNames: [
-    '一月', '二月', '三月', '四月', '五月', '六月',
-    '七月', '八月', '九月', '十月', '十一月', '十二月',
-  ],
-  monthNamesShort: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-  dayNames: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
-  dayNamesShort: ['日', '一', '二', '三', '四', '五', '六'],
-  amDesignator: '上午',
-  pmDesignator: '下午',
-};
+function sortExpensesByCreatedDesc(a: Expense, b: Expense): number {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
 
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const { expenses, loading, fetchExpenses, updateExpenseStatus } = useExpenses(
+  const { expenses, refreshing, fetchExpenses, updateExpenseStatus } = useExpenses(
     profile.id,
     true
   );
@@ -105,23 +85,40 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const [rejectModal, setRejectModal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [exporting, setExporting] = useState(false);
+  /** Sections repliables : les plus récentes en premier (created_at). */
+  const [pendingSectionExpanded, setPendingSectionExpanded] = useState(true);
+  const [processedSectionExpanded, setProcessedSectionExpanded] = useState(false);
+  const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
 
-  useEffect(() => {
-    const loadEmployees = async () => {
-      const { data } = await supabase.from('profiles').select('*');
-      if (data) setEmployees(data);
-    };
-    loadEmployees();
+  const loadEmployeesWithExpenses = useCallback(async () => {
+    const { data: expRows, error: e1 } = await supabase.from('expenses').select('user_id');
+    if (e1) {
+      setEmployees([]);
+      return;
+    }
+    if (!expRows?.length) {
+      setEmployees([]);
+      return;
+    }
+    const ids = [...new Set(expRows.map(r => r.user_id).filter(Boolean))] as string[];
+    if (ids.length === 0) {
+      setEmployees([]);
+      return;
+    }
+    const { data: profs, error: e2 } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', ids)
+      .order('full_name', { ascending: true });
+    if (e2) {
+      setEmployees([]);
+      return;
+    }
+    setEmployees((profs ?? []) as Profile[]);
   }, []);
 
   useEffect(() => {
-    const loc = LocaleConfig.locales as Record<string, XLocale>;
-    if (!loc.fr) loc.fr = FR_CAL;
-    if (!loc.zh) loc.zh = ZH_CAL;
-    const base = (i18n.language || 'fr').split('-')[0];
-    if (base === 'zh') LocaleConfig.defaultLocale = 'zh';
-    else if (base === 'en') LocaleConfig.defaultLocale = '';
-    else LocaleConfig.defaultLocale = 'fr';
+    syncCalendarLocale(i18n.language);
   }, [i18n.language]);
 
   const rangeMarked = useMemo(
@@ -130,6 +127,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   );
 
   const openDateRangeInSheet = useCallback(() => {
+    setEmployeePickerOpen(false);
     if (dateFrom) {
       setDatePick({
         start: dateFrom,
@@ -189,6 +187,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     if (dateFrom) newFilters.date_from = dateFrom;
     if (dateTo) newFilters.date_to = dateTo;
     setFilters(newFilters);
+    setEmployeePickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
@@ -200,11 +199,13 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     setDateFrom('');
     setDateTo('');
     setFilters({});
+    setEmployeePickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
 
   const closeFilterModal = () => {
+    setEmployeePickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
@@ -251,11 +252,37 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     rejected: expenses.filter(e => e.status === 'rejected').length,
   };
 
+  const sortedExpenses = useMemo(
+    () => [...expenses].sort(sortExpensesByCreatedDesc),
+    [expenses]
+  );
+
+  const dashboardListRows = useMemo((): DashboardListRow[] => {
+    const pending = sortedExpenses.filter(e => e.status === 'pending');
+    const processed = sortedExpenses.filter(
+      e => e.status === 'approved' || e.status === 'rejected'
+    );
+    const rows: DashboardListRow[] = [];
+    if (pending.length > 0) {
+      rows.push({ kind: 'header', section: 'pending', count: pending.length });
+      if (pendingSectionExpanded) {
+        pending.forEach(item => rows.push({ kind: 'expense', item }));
+      }
+    }
+    if (processed.length > 0) {
+      rows.push({ kind: 'header', section: 'processed', count: processed.length });
+      if (processedSectionExpanded) {
+        processed.forEach(item => rows.push({ kind: 'expense', item }));
+      }
+    }
+    return rows;
+  }, [sortedExpenses, pendingSectionExpanded, processedSectionExpanded]);
+
   const openExpenseDetail = (expense: Expense) => {
     navigation.navigate('ExpenseDetail', { expense });
   };
 
-  const renderExpense = ({ item }: { item: Expense }) => (
+  const renderExpenseCard = (item: Expense) => (
     <View className="bg-white rounded-[22px] p-5 mb-3 mx-5 border border-gray-100/80 shadow-sm">
       <TouchableOpacity
         activeOpacity={0.7}
@@ -271,8 +298,16 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
             <Text className="text-gray-500 text-sm mt-0.5">
               {(item.profiles as Profile | undefined)?.full_name ?? '—'}
             </Text>
-            <Text className="text-gray-400 text-xs mt-0.5" numberOfLines={2}>
-              {formatDate(item.receipt_date)} · {item.supplier}
+            <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={2}>
+              {item.supplier}
+              {item.city?.trim() ? ` · ${item.city.trim()}` : ''}
+            </Text>
+            <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
+              {t('expense.receiptDate')}: {formatDate(item.receipt_date)}
+            </Text>
+            <Text className="text-gray-400 text-[11px] mt-0.5" numberOfLines={1}>
+              {t('expense.requestCreatedAt')}:{' '}
+              {item.created_at ? formatDate(item.created_at) : '—'}
             </Text>
           </View>
           <View className="items-end">
@@ -328,34 +363,79 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     </View>
   );
 
+  const renderDashboardRow = ({ item }: { item: DashboardListRow }) => {
+    if (item.kind === 'header') {
+      const isPending = item.section === 'pending';
+      const expanded = isPending ? pendingSectionExpanded : processedSectionExpanded;
+      return (
+        <TouchableOpacity
+          className={`mx-5 mb-1 flex-row items-center justify-between py-3 px-1 active:opacity-80 ${
+            isPending ? 'mt-2 pt-2' : 'mt-4'
+          }`}
+          onPress={() =>
+            isPending
+              ? setPendingSectionExpanded(v => !v)
+              : setProcessedSectionExpanded(v => !v)
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            isPending
+              ? expanded
+                ? t('admin.collapsePendingSection')
+                : t('admin.expandPendingSection')
+              : expanded
+                ? t('admin.collapseProcessedSection')
+                : t('admin.expandProcessedSection')
+          }
+        >
+          <Text className="text-ink font-bold text-base">
+            {isPending
+              ? t('admin.dashboardSectionPending')
+              : t('admin.dashboardSectionProcessed')}{' '}
+            ({item.count})
+          </Text>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={22}
+            color={theme.brandInk}
+          />
+        </TouchableOpacity>
+      );
+    }
+    return renderExpenseCard(item.item);
+  };
+
   return (
     <View className="flex-1 bg-surface">
       <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
-          className="bg-white rounded-[28px] px-6 py-6 border border-gray-100/80 shadow-sm"
+          className="rounded-[28px] px-6 py-6"
           style={{
-            shadowColor: theme.brandPrimary,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.06,
-            shadowRadius: 20,
-            elevation: 4,
+            backgroundColor: theme.heroHeaderBg,
+            borderWidth: 1,
+            borderColor: theme.heroHeaderBorder,
+            ...heroHeaderShadow,
           }}
         >
-          <Text className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
+          <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
             {t('common.appName')}
-          </Text>
-          <Text className="text-gray-900 text-3xl font-bold mt-2 leading-tight">{t('admin.title')}</Text>
-          <Text className="text-gray-400 text-sm mt-2 capitalize">
-            {profile.full_name} · {profile.role}
+          </AppNameText>
+          <ScreenHeroTitle className="mt-2">{t('admin.title')}</ScreenHeroTitle>
+          <Text className="text-gray-400 text-sm mt-2">
+            {profile.full_name} · {userRoleLabel(profile.role, t)}
           </Text>
           <View className="flex-row gap-2.5 mt-5">
             <View className="flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalExpenses')}</Text>
-              <Text className="text-gray-900 font-bold text-lg mt-0.5">{totals.count}</Text>
+              <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
+                {totals.count}
+              </Text>
             </View>
             <View className="flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalTTC')}</Text>
-              <Text className="text-gray-900 font-bold text-lg mt-0.5">{formatCurrency(totals.ttc)}</Text>
+              <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
+                {formatCurrency(totals.ttc)}
+              </Text>
             </View>
             <View className="flex-1 bg-amber-50 rounded-2xl px-3 py-3 border border-amber-100">
               <Text className="text-amber-700 text-[11px] font-semibold">{t('admin.pendingCount')}</Text>
@@ -370,6 +450,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
           className="flex-1 bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm"
           onPress={() => {
             setFilterSheetView('main');
+            void loadEmployeesWithExpenses();
             setShowFilterModal(true);
           }}
         >
@@ -392,25 +473,29 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         </TouchableOpacity>
       </View>
 
-      {/* Expense list */}
+      {/* Liste en sections : en attente / déjà traitées, repliables ; tri par date de création (récent d’abord). */}
       <FlatList
-        data={expenses}
-        keyExtractor={item => item.id}
-        renderItem={renderExpense}
+        data={dashboardListRows}
+        keyExtractor={(row, index) =>
+          row.kind === 'header' ? `hdr-${row.section}-${index}` : row.item.id
+        }
+        renderItem={renderDashboardRow}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
-            refreshing={loading}
-            onRefresh={() => fetchExpenses(filters)}
+            refreshing={refreshing}
+            onRefresh={() => void fetchExpenses(filters, { pull: true })}
           />
         }
         ListEmptyComponent={
-          <View className="mx-5 mt-8 bg-white rounded-[28px] border border-gray-100 px-8 py-14 items-center shadow-sm">
-            <View className="w-20 h-20 rounded-full bg-primary-50 items-center justify-center mb-5">
-              <Text className="text-4xl">📋</Text>
+          expenses.length === 0 ? (
+            <View className="mx-5 mt-8 bg-white rounded-[28px] border border-gray-100 px-8 py-14 items-center shadow-sm">
+              <View className="w-20 h-20 rounded-full bg-primary-50 items-center justify-center mb-5">
+                <Text className="text-4xl">📋</Text>
+              </View>
+              <Text className="text-gray-900 font-bold text-lg">{t('common.noData')}</Text>
             </View>
-            <Text className="text-gray-900 font-bold text-lg">{t('common.noData')}</Text>
-          </View>
+          ) : null
         }
       />
 
@@ -428,7 +513,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel')}
           />
-          <View className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[92%]">
+          <View className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[92%] relative overflow-visible">
             {filterSheetView === 'main' ? (
               <ScrollView
                 keyboardShouldPersistTaps="handled"
@@ -483,9 +568,10 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                 </View>
 
                 <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByEmployee')}</Text>
-                <View className="flex-row flex-wrap gap-2 mb-4">
+                <Text className="text-gray-500 text-xs mb-2 leading-4">{t('admin.filterEmployeeHint')}</Text>
+                <View className="flex-row items-stretch gap-2 mb-4">
                   <TouchableOpacity
-                    className={`px-4 py-2 rounded-full border ${
+                    className={`px-4 py-3 rounded-xl border justify-center ${
                       !selectedEmployee
                         ? 'bg-primary-600 border-primary-600'
                         : 'bg-gray-50 border-gray-200'
@@ -500,25 +586,25 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                       {t('common.all')}
                     </Text>
                   </TouchableOpacity>
-                  {employees.map(emp => (
-                    <TouchableOpacity
-                      key={emp.id}
-                      className={`px-4 py-2 rounded-full border ${
-                        selectedEmployee === emp.id
-                          ? 'bg-primary-600 border-primary-600'
-                          : 'bg-gray-50 border-gray-200'
-                      }`}
-                      onPress={() => setSelectedEmployee(emp.id)}
+                  <TouchableOpacity
+                    className={`flex-1 min-w-0 flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                      selectedEmployee ? 'border-primary-300 bg-primary-50/50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                    onPress={() => employees.length > 0 && setEmployeePickerOpen(true)}
+                    disabled={employees.length === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.selectEmployeePlaceholder')}
+                  >
+                    <Text
+                      className={`text-sm font-medium flex-1 pr-2 ${selectedEmployee ? 'text-gray-900' : 'text-gray-400'}`}
+                      numberOfLines={1}
                     >
-                      <Text
-                        className={`text-sm font-medium ${
-                          selectedEmployee === emp.id ? 'text-white' : 'text-gray-700'
-                        }`}
-                      >
-                        {emp.full_name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                      {selectedEmployee
+                        ? employees.find(e => e.id === selectedEmployee)?.full_name ?? selectedEmployee
+                        : t('admin.selectEmployeePlaceholder')}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={theme.inkMuted} />
+                  </TouchableOpacity>
                 </View>
 
                 <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByDate')}</Text>
@@ -634,6 +720,61 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                 </View>
               </>
             )}
+            {employeePickerOpen && filterSheetView === 'main' ? (
+              <View
+                className="justify-end"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  zIndex: 100,
+                }}
+                pointerEvents="box-none"
+              >
+                <Pressable
+                  className="flex-1 bg-black/40"
+                  onPress={() => setEmployeePickerOpen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                />
+                <View className="bg-white rounded-t-[24px] border-t border-gray-200 px-4 pt-4 pb-5 shadow-lg">
+                  <Text className="text-ink font-bold text-base mb-1">{t('admin.filterByEmployee')}</Text>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 280 }}
+                    nestedScrollEnabled
+                  >
+                    {employees.length === 0 ? (
+                      <Text className="text-gray-500 text-sm py-4">{t('admin.noEmployeesWithExpenses')}</Text>
+                    ) : (
+                      employees.map(emp => (
+                        <TouchableOpacity
+                          key={emp.id}
+                          className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                          onPress={() => {
+                            setSelectedEmployee(emp.id);
+                            setEmployeePickerOpen(false);
+                          }}
+                        >
+                          <Text
+                            className={`text-base ${
+                              selectedEmployee === emp.id ? 'font-bold' : 'font-medium text-gray-900'
+                            }`}
+                            style={
+                              selectedEmployee === emp.id ? { color: theme.brandPrimary } : undefined
+                            }
+                          >
+                            {emp.full_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
           </View>
         </View>
       </Modal>
