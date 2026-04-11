@@ -24,13 +24,93 @@ const num = (meta: Record<string, unknown>, k: string): number | null => {
 };
 
 /**
- * Titres / corps selon la langue i18n active. Si `metadata` est absent (anciennes lignes), retourne title/body SQL.
+ * Complète les champs manquants à partir du title/body français issus du trigger SQL,
+ * pour que les clés i18n (ex. zh) s’appliquent même si metadata est vide ou ancien.
+ * Les noms fournisseurs restent tels qu’extraits du texte (pas de traduction).
+ */
+function enrichMetadataFromStoredText(
+  n: AppNotification,
+  base: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  const body = (n.body ?? '').trim();
+  const title = (n.title ?? '').trim();
+
+  switch (n.type) {
+    case 'expense_created': {
+      const missingAmount = num(out, 'amount_ttc') === null;
+      const missingSupplier = !str(out, 'supplier');
+      if ((missingAmount || missingSupplier || !str(out, 'employee_name')) && body) {
+        /* Corps SQL : « Nom — Fournisseur · 35.90 € TTC » (point décimal dans TO_CHAR). */
+        const m = body.match(
+          /^(.+?)\s*[—–\-−]\s*(.+?)\s*[·•]\s*([\d\s\u00A0]+(?:[.,]\d+)?)\s*€(?:\s*TTC)?/i
+        );
+        if (m) {
+          if (!str(out, 'employee_name')) out.employee_name = m[1].trim();
+          if (!str(out, 'supplier')) out.supplier = m[2].trim();
+          if (missingAmount) {
+            const normalized = m[3].replace(/[\s\u00A0]/g, '').replace(',', '.');
+            const amt = parseFloat(normalized);
+            if (Number.isFinite(amt)) out.amount_ttc = amt;
+          }
+        }
+      }
+      break;
+    }
+    case 'expense_reviewed': {
+      if (!str(out, 'supplier') && body) {
+        const m = body.match(/«\s*([^»]+?)\s*»/);
+        if (m) out.supplier = m[1].trim();
+      }
+      const st = str(out, 'review_status').toLowerCase();
+      if (st === 'approved' || st === 'rejected') {
+        out.review_status = st;
+      } else {
+        const tl = `${title}\n${body}`.toLowerCase();
+        if (tl.includes('rejet') || tl.includes('reject') || tl.includes('拒绝')) {
+          out.review_status = 'rejected';
+        } else if (
+          tl.includes('approuv') ||
+          tl.includes('approv') ||
+          tl.includes('批准')
+        ) {
+          out.review_status = 'approved';
+        }
+      }
+      break;
+    }
+    case 'expense_deleted': {
+      if (!str(out, 'supplier') && body) {
+        const m = body.match(/supprimée\s*:\s*(.+?)\s*\.(?:\s*)?$/i);
+        if (m) out.supplier = m[1].trim();
+      }
+      break;
+    }
+    case 'expense_updated': {
+      if ((!str(out, 'supplier') || !str(out, 'employee_name')) && body) {
+        const m = body.match(/^(.+?)\s+a mis à jour\s*:\s*(.+)$/i);
+        if (m) {
+          if (!str(out, 'employee_name')) out.employee_name = m[1].trim();
+          if (!str(out, 'supplier')) {
+            out.supplier = m[2].replace(/\.\s*$/, '').trim();
+          }
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return out;
+}
+
+/**
+ * Titres / corps selon la langue i18n active. Le fournisseur et les montants
+ * conservent les valeurs métier ; seuls les libellés passent par i18n.
  */
 export function getLocalizedNotification(n: AppNotification, t: TFunction): { title: string; body: string } {
-  const meta = metaRecord(n);
-  if (!meta || Object.keys(meta).length === 0) {
-    return { title: n.title, body: n.body ?? '' };
-  }
+  const raw = metaRecord(n);
+  const meta = enrichMetadataFromStoredText(n, raw ? { ...raw } : {});
 
   switch (n.type) {
     case 'expense_created': {
@@ -61,7 +141,7 @@ export function getLocalizedNotification(n: AppNotification, t: TFunction): { ti
     }
     case 'expense_reviewed': {
       const supplier = str(meta, 'supplier');
-      const status = str(meta, 'review_status');
+      const status = str(meta, 'review_status').toLowerCase();
       if (supplier && (status === 'approved' || status === 'rejected')) {
         if (status === 'approved') {
           return {

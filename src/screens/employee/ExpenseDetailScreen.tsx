@@ -8,6 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
   Modal,
+  TextInput,
   useWindowDimensions,
   Platform,
 } from 'react-native';
@@ -17,6 +18,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Expense, Profile } from '../../types';
 import { supabase } from '../../config/supabase';
+import { submitExpenseReview } from '../../lib/expenseReview';
+import { showAppAlert } from '../../utils/alert';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
@@ -26,6 +29,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 interface Props {
   navigation: NativeStackNavigationProp<any>;
   route: RouteProp<{ ExpenseDetail: { expense: Expense } }, 'ExpenseDetail'>;
+  /** Présent pour finance / manager : actions de validation sur la fiche (notif, suivi). */
+  viewerProfile?: Profile;
 }
 
 const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
@@ -36,10 +41,23 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
 
 const THUMB = 72;
 
-export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+function isReviewerRole(role: Profile['role'] | undefined): boolean {
+  return role === 'finance' || role === 'manager';
+}
+
+export const ExpenseDetailScreen: React.FC<Props> = ({
+  navigation,
+  route,
+  viewerProfile,
+}) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [expenseRow, setExpenseRow] = useState<Expense>(route.params.expense);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [rejectModal, setRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const canReview =
+    !!viewerProfile && isReviewerRole(viewerProfile.role) && expenseRow.status === 'pending';
   const status = statusConfig[expenseRow.status];
   const { width: windowW, height: windowH } = useWindowDimensions();
 
@@ -292,6 +310,53 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text className="text-red-600 text-sm mt-1">{expenseRow.rejection_reason}</Text>
           </View>
         )}
+
+        {canReview && (
+          <View className="bg-white rounded-[22px] p-5 mb-6 border border-gray-100 shadow-sm">
+            <Text className="text-gray-900 font-bold text-lg mb-4">{t('admin.reviewActions')}</Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 bg-emerald-600 rounded-full py-3.5 items-center"
+                style={{ opacity: actionLoading ? 0.6 : 1 }}
+                disabled={actionLoading}
+                onPress={async () => {
+                  if (!viewerProfile) return;
+                  setActionLoading(true);
+                  const { error } = await submitExpenseReview(
+                    expenseRow.id,
+                    'approved',
+                    viewerProfile.id
+                  );
+                  setActionLoading(false);
+                  if (error) {
+                    showAppAlert(t('common.error'), error.message, 'error');
+                    return;
+                  }
+                  const now = new Date().toISOString();
+                  setExpenseRow(prev => ({
+                    ...prev,
+                    status: 'approved',
+                    reviewed_by: viewerProfile.id,
+                    reviewed_at: now,
+                    rejection_reason: undefined,
+                  }));
+                }}
+              >
+                <Text className="text-white font-bold text-sm">
+                  ✓ {t('admin.approve')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-red-500 rounded-full py-3.5 items-center"
+                style={{ opacity: actionLoading ? 0.6 : 1 }}
+                disabled={actionLoading}
+                onPress={() => setRejectModal(true)}
+              >
+                <Text className="text-white font-bold text-sm">✕ {t('admin.reject')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       <Modal
@@ -349,6 +414,67 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               </Text>
             )}
           </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={rejectModal} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-black/40 px-6">
+          <View className="bg-white rounded-[28px] p-6 w-full max-w-md border border-gray-100">
+            <Text className="text-lg font-bold text-gray-900 mb-4">
+              {t('admin.rejectionReason')}
+            </Text>
+            <TextInput
+              className="bg-surface border border-gray-100 rounded-2xl px-4 py-3 text-base mb-4 text-gray-900"
+              value={rejectionReason}
+              onChangeText={setRejectionReason}
+              placeholder={t('admin.rejectionReason')}
+              multiline
+              numberOfLines={3}
+            />
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 border border-gray-100 rounded-full py-3.5 items-center bg-surface"
+                onPress={() => {
+                  setRejectModal(false);
+                  setRejectionReason('');
+                }}
+              >
+                <Text className="text-gray-800 font-semibold">{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-red-500 rounded-full py-3.5 items-center"
+                style={{ opacity: actionLoading ? 0.6 : 1 }}
+                disabled={actionLoading}
+                onPress={async () => {
+                  if (!viewerProfile) return;
+                  setActionLoading(true);
+                  const { error } = await submitExpenseReview(
+                    expenseRow.id,
+                    'rejected',
+                    viewerProfile.id,
+                    rejectionReason
+                  );
+                  setActionLoading(false);
+                  if (error) {
+                    showAppAlert(t('common.error'), error.message, 'error');
+                    return;
+                  }
+                  const now = new Date().toISOString();
+                  setExpenseRow(prev => ({
+                    ...prev,
+                    status: 'rejected',
+                    reviewed_by: viewerProfile.id,
+                    reviewed_at: now,
+                    rejection_reason: rejectionReason || undefined,
+                  }));
+                  setRejectModal(false);
+                  setRejectionReason('');
+                }}
+              >
+                <Text className="text-white font-bold">{t('admin.reject')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </ScrollView>

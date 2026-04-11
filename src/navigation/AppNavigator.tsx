@@ -70,16 +70,20 @@ const AdminStack: React.FC<AdminStackProps> = ({ profile }) => (
       {(props: any) => <AdminDashboardScreen {...props} profile={profile} />}
     </Stack.Screen>
     <Stack.Screen name="ExpenseDetail">
-      {(props: any) => <ExpenseDetailScreen {...props} />}
+      {(props: any) => <ExpenseDetailScreen {...props} viewerProfile={profile} />}
     </Stack.Screen>
   </Stack.Navigator>
 );
 
-const NotificationsStack: React.FC = () => (
+interface NotificationsStackProps {
+  profile: Profile;
+}
+
+const NotificationsStack: React.FC<NotificationsStackProps> = ({ profile }) => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="NotificationsHome" component={NotificationsScreen} />
     <Stack.Screen name="ExpenseDetail">
-      {(props: any) => <ExpenseDetailScreen {...props} />}
+      {(props: any) => <ExpenseDetailScreen {...props} viewerProfile={profile} />}
     </Stack.Screen>
   </Stack.Navigator>
 );
@@ -189,7 +193,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
             unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
         }}
       >
-        {() => <NotificationsStack />}
+        {() => <NotificationsStack profile={profile} />}
       </Tab.Screen>
 
       <Tab.Screen

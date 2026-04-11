@@ -203,6 +203,7 @@
     "filterByCategory": "Filtrer par Catégorie",
     "approve": "Approuver",
     "reject": "Rejeter",
+    "reviewActions": "Traiter la demande",
     "rejectionReason": "Motif du rejet",
     "exportExcel": "Exporter en Excel",
     "exportSuccess": "Fichier Excel exporté avec succès",

@@ -203,6 +203,7 @@
     "filterByCategory": "按类别筛选",
     "approve": "批准",
     "reject": "拒绝",
+    "reviewActions": "处理申请",
     "rejectionReason": "拒绝原因",
     "exportExcel": "导出Excel",
     "exportSuccess": "Excel文件导出成功",

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../config/supabase';
+import { submitExpenseReview } from '../lib/expenseReview';
 import { Expense, ExpenseFilters, ExpenseCategory, VatDetail, CATEGORY_ACCOUNTING_CODES } from '../types';
 import { FISCAL_ALERT_THRESHOLD } from '../config/constants';
 
@@ -141,15 +142,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     reviewerId: string,
     rejectionReason?: string
   ) => {
-    const { error } = await supabase
-      .from('expenses')
-      .update({
-        status,
-        reviewed_by: reviewerId,
-        reviewed_at: new Date().toISOString(),
-        rejection_reason: rejectionReason,
-      })
-      .eq('id', expenseId);
+    const { error } = await submitExpenseReview(expenseId, status, reviewerId, rejectionReason);
 
     if (!error) {
       setExpenses(prev =>
