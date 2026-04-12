@@ -1,3 +1,8 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "buildCommand": "expo export -p web",
+  "outputDirectory": "dist",
+  "devCommand": "expo start --web",
+  "cleanUrls": true,
+  "framework": null,
+  "rewrites": [{ "source": "/:path*", "destination": "/" }]
 }
