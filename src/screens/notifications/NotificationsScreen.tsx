@@ -24,7 +24,9 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   IS_WEB,
+  WEB_CARD_GUTTER_CLASS,
   WEB_HERO_CARD_CLASS,
+  WEB_PAGE_GUTTER_CLASS,
   webHeroCardInlineStyle,
   webHeaderOuterInlineStyle,
 } from '../../config/webLayout';
@@ -79,8 +81,8 @@ function sortByNewest(a: AppNotification, b: AppNotification): number {
 export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
-  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
+  const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const {
     notifications,
     loading,

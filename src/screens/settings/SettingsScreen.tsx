@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   IS_WEB,
   WEB_HERO_CARD_CLASS,
+  WEB_PAGE_GUTTER_CLASS,
   webHeroCardInlineStyle,
   webHeaderOuterInlineStyle,
 } from '../../config/webLayout';
@@ -30,7 +31,7 @@ const languages: { code: SupportedLanguage; label: string; flag: string }[] = [
 export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
 
   const handleLanguageChange = async (lang: SupportedLanguage) => {
     await changeLanguage(lang);

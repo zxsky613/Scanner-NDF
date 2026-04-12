@@ -39,7 +39,9 @@ import { showAppAlert } from '../../utils/alert';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import {
   IS_WEB,
+  WEB_CARD_GUTTER_CLASS,
   WEB_HERO_CARD_CLASS,
+  WEB_PAGE_GUTTER_CLASS,
   webHeroCardInlineStyle,
   webHeaderOuterInlineStyle,
 } from '../../config/webLayout';
@@ -69,8 +71,8 @@ function sortExpensesByCreatedDesc(a: Expense, b: Expense): number {
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
-  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
+  const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const { expenses, refreshing, fetchExpenses, updateExpenseStatus } = useExpenses(
     profile.id,
     true

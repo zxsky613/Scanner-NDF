@@ -13,7 +13,7 @@ const poppins = {
 module.exports = {
   content: ['./App.{js,jsx,ts,tsx}', './src/**/*.{js,jsx,ts,tsx}'],
   /** Classes utilisées via constantes (webLayout) ou branches web : évite qu’elles soient purgées. */
-  safelist: ['rounded-2xl', 'px-4', 'py-3', 'pb-1'],
+  safelist: ['rounded-2xl', 'px-4', 'py-3', 'pb-1', 'px-10', 'mx-10'],
   presets: [nativewind],
   theme: {
     extend: {

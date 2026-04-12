@@ -123,7 +123,18 @@
     "filterCategoryAll": "Toutes catégories",
     "filterApply": "Appliquer",
     "filterReset": "Réinitialiser",
-    "filtersActive": "Filtres actifs"
+    "filtersActive": "Filtres actifs",
+    "webNavMain": "Menu principal",
+    "webNavSettings": "Paramètres",
+    "recentScanned": "Notes récentes",
+    "viewAll": "Voir tout",
+    "scanDropTitle": "Glissez-déposez votre ticket ici",
+    "scanDropDesc": "Formats supportés : JPG, PNG, PDF jusqu’à 10 Mo. L’analyse extraira automatiquement les données.",
+    "browseFiles": "Parcourir les fichiers",
+    "manualEntry": "Saisie manuelle",
+    "documentAnalysisTitle": "Analyse du document",
+    "aiExtractionBadge": "Extraction IA",
+    "validateExpense": "Valider la dépense"
   },
   "expense": {
     "date": "Date",

@@ -16,6 +16,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Calendar } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,13 +30,7 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import { showAppAlert } from '../../utils/alert';
-import {
-  IS_WEB,
-  WEB_HERO_CARD_CLASS,
-  webHeroCardInlineStyle,
-  webHeroStatBoxStyle,
-  webHeaderOuterInlineStyle,
-} from '../../config/webLayout';
+import { IS_WEB, WEB_CARD_GUTTER_CLASS, WEB_PAGE_GUTTER_CLASS } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -88,11 +83,184 @@ const swipeStyles = {
   iconDelete: '#C94A54' as const,
 };
 
+/** Colonne droite web : montant + statut + ⋮ (groupe aligné à gauche dans la colonne). */
+const WEB_ROW_TRAIL_COL_W = 168;
+
+
+type WebExpenseRowWebProps = {
+  item: Expense;
+  expanded: boolean;
+  cardX: string;
+  navigation: NativeStackNavigationProp<any>;
+  t: TFunction;
+  onToggleExpand: () => void;
+  onCollapse: () => void;
+  onOpenDelete: (id: string) => void;
+};
+
+/** Ligne web : montant + statut + menu regroupés ; les trois points ouvrent Voir / Modifier / Supprimer (pas d’icônes visibles en permanence). */
+function WebExpenseRowWeb({
+  item,
+  expanded,
+  cardX,
+  navigation,
+  t,
+  onToggleExpand,
+  onCollapse,
+  onOpenDelete,
+}: WebExpenseRowWebProps) {
+  const pending = item.status === 'pending';
+
+  const menuBtn = (
+    <Pressable
+      className="p-1.5 rounded-lg active:bg-gray-200/80 shrink-0"
+      onPress={onToggleExpand}
+      accessibilityRole="button"
+      accessibilityLabel={t('employee.webExpenseActionsMenu')}
+    >
+      <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
+    </Pressable>
+  );
+
+  return (
+    <View className={`mb-2 ${cardX}`}>
+      <View className="bg-white rounded-xl border border-gray-200/90 shadow-sm overflow-hidden">
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            className="flex-1 min-w-0 flex-row items-center px-4 py-3.5 gap-3 active:bg-gray-50/90"
+            onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
+            accessibilityRole="button"
+            accessibilityLabel={t('employee.swipeView')}
+          >
+            <View className="w-10 h-10 rounded-lg bg-surface items-center justify-center border border-gray-100 shrink-0">
+              <Text className="text-lg leading-none">{categoryIcons[item.category] ?? '\uD83D\uDCC4'}</Text>
+            </View>
+            <View className="flex-1 min-w-0">
+              <Text className="font-semibold text-gray-900 text-sm" numberOfLines={1}>
+                {t(`expense.${item.category}`)}
+              </Text>
+              <Text className="text-gray-600 text-xs mt-0.5" numberOfLines={1}>
+                {item.supplier}
+                {item.city?.trim() ? ` · ${item.city.trim()}` : ''}
+              </Text>
+              <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
+                {formatDate(item.receipt_date)}
+                {item.created_at ? ` · ${formatDate(item.created_at)}` : ''}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <View
+            className="border-l border-gray-100 bg-gray-50/80 shrink-0 flex-row items-center gap-2 pl-2 pr-1 py-2"
+            style={{
+              width: WEB_ROW_TRAIL_COL_W,
+              minWidth: WEB_ROW_TRAIL_COL_W,
+              flexShrink: 0,
+            }}
+          >
+            <Pressable
+              className="flex-1 min-w-0"
+              onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
+              accessibilityRole="button"
+              accessibilityLabel={t('employee.swipeView')}
+            >
+              <View className="items-start min-w-0">
+                <Text className="font-bold text-gray-900 text-sm tabular-nums" numberOfLines={1}>
+                  {formatCurrency(item.amount_ttc)}
+                </Text>
+                <View
+                  className={`px-2 py-0.5 rounded-md mt-1 max-w-full self-start ${statusColors[item.status]?.split(' ')[0]}`}
+                >
+                  <Text
+                    className={`text-[10px] font-bold uppercase tracking-wide ${statusColors[item.status]?.split(' ')[1]}`}
+                    numberOfLines={1}
+                  >
+                    {t(`expense.${item.status}`)}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+            {menuBtn}
+          </View>
+        </View>
+
+        {expanded ? (
+          <View className="border-t border-gray-200 bg-gray-50/95 px-3 py-2 flex-row flex-wrap gap-2">
+            <Pressable
+              className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+              onPress={() => {
+                onCollapse();
+                navigation.navigate('ExpenseDetail', { expense: item });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('employee.swipeView')}
+            >
+              <Ionicons name="eye-outline" size={18} color={swipeStyles.iconView} />
+              <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                {t('employee.swipeView')}
+              </Text>
+            </Pressable>
+            {pending ? (
+              <>
+                <Pressable
+                  className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+                  onPress={() => {
+                    onCollapse();
+                    navigation.navigate('NewExpense', { editExpense: item });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.edit')}
+                >
+                  <Ionicons name="create-outline" size={18} color={swipeStyles.iconEdit} />
+                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                    {t('common.edit')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-red-200 active:bg-red-50/80"
+                  onPress={() => {
+                    onCollapse();
+                    onOpenDelete(item.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.delete')}
+                >
+                  <Ionicons name="trash-outline" size={18} color={swipeStyles.iconDelete} />
+                  <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
+        {(item.is_fiscal_alert || item.is_flagged_duplicate) && (
+          <View className="flex-row flex-wrap gap-2 px-4 pb-3 pt-0 border-t border-gray-100 bg-surface/50">
+            {item.is_fiscal_alert ? (
+              <View className="bg-red-50 rounded-md px-2 py-1">
+                <Text className="text-red-700 text-[11px] font-medium">
+                  {'\u26A0\uFE0F'} {t('alerts.fiscalTitle')}
+                </Text>
+              </View>
+            ) : null}
+            {item.is_flagged_duplicate ? (
+              <View className="bg-amber-50 rounded-md px-2 py-1">
+                <Text className="text-amber-800 text-[11px] font-medium">
+                  {'\uD83D\uDD04'} {t('alerts.duplicateTitle')}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
-  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
+  const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const { expenses, refreshing, fetchExpenses, deleteExpense } = useExpenses(profile.id);
   const [listFilters, setListFilters] = useState<ExpenseFilters>({});
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -104,14 +272,9 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  /** Web : menu actions (⋯) sur une ligne de note. */
-  const [webActionMenuId, setWebActionMenuId] = useState<string | null>(null);
+  /** Web : ligne dont le menu d’actions (trois points) est ouvert. */
+  const [webExpandedRowId, setWebExpandedRowId] = useState<string | null>(null);
   const swipeRefs = useRef<Map<string, Swipeable>>(new Map());
-
-  const webExpenseForActionMenu = useMemo(
-    () => (webActionMenuId ? expenses.find(e => e.id === webActionMenuId) : undefined),
-    [webActionMenuId, expenses]
-  );
 
   useEffect(() => {
     syncCalendarLocale(i18n.language);
@@ -133,12 +296,26 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   useFocusEffect(
     useCallback(() => {
       return () => {
-        if (IS_WEB) setWebActionMenuId(null);
+        if (IS_WEB) setWebExpandedRowId(null);
       };
     }, [])
   );
 
+  /** Clic en dehors de la ligne (web) : referme le panneau. */
+  useEffect(() => {
+    if (!IS_WEB || !webExpandedRowId) return;
+    const close = () => setWebExpandedRowId(null);
+    const t = setTimeout(() => {
+      if (typeof document !== 'undefined') document.addEventListener('click', close);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      if (typeof document !== 'undefined') document.removeEventListener('click', close);
+    };
+  }, [webExpandedRowId]);
+
   const openFilterModal = () => {
+    if (IS_WEB) setWebExpandedRowId(null);
     setFilterModalView('main');
     setDraftCategory(listFilters.category ?? 'all');
     const d = listFilters.date_from ?? listFilters.date_to ?? '';
@@ -233,16 +410,19 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                 {t('expense.receiptDate')} · {t('expense.requestCreatedAt')}
               </Text>
             </View>
-            <View className="items-end shrink-0 pl-2">
-              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                {t('expense.amountTTC')}
-              </Text>
-              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-1">
-                {t('expense.status')}
-              </Text>
-            </View>
           </View>
-          <View className="w-[52px] border-l border-gray-200/80 bg-gray-50/95" />
+          <View
+            className="border-l border-gray-200/80 bg-gray-50/95 items-start justify-center px-2 py-2 gap-1 shrink-0"
+            style={{ width: WEB_ROW_TRAIL_COL_W }}
+          >
+            <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              {t('expense.amountTTC')}
+            </Text>
+            <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              {t('expense.status')}
+            </Text>
+            <View className="h-[22px]" />
+          </View>
         </View>
       </View>
     </View>
@@ -260,81 +440,21 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   const renderExpense = ({ item }: { item: Expense }) => {
     const pending = item.status === 'pending';
 
-    /** Ligne type « tableau » : dense, actions visibles (pas de swipe sur web). */
+    /** Ligne type « tableau » : ⋮ le menu (trois points) ouvre Voir / Modifier / Supprimer. */
     if (IS_WEB) {
       return (
-        <View className={`mb-2 ${cardX}`}>
-          <View className="bg-white rounded-xl border border-gray-200/90 shadow-sm overflow-hidden">
-            <View className="flex-row items-stretch">
-              <TouchableOpacity
-                className="flex-1 flex-row items-center px-4 py-3.5 gap-3 min-w-0 active:bg-gray-50/90"
-                onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
-                accessibilityRole="button"
-              >
-                <View className="w-10 h-10 rounded-lg bg-surface items-center justify-center border border-gray-100 shrink-0">
-                  <Text className="text-lg leading-none">{categoryIcons[item.category] ?? '📄'}</Text>
-                </View>
-                <View className="flex-1 min-w-0">
-                  <Text className="font-semibold text-gray-900 text-sm" numberOfLines={1}>
-                    {t(`expense.${item.category}`)}
-                  </Text>
-                  <Text className="text-gray-600 text-xs mt-0.5" numberOfLines={1}>
-                    {item.supplier}
-                    {item.city?.trim() ? ` · ${item.city.trim()}` : ''}
-                  </Text>
-                  <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
-                    {formatDate(item.receipt_date)}
-                    {item.created_at ? ` · ${formatDate(item.created_at)}` : ''}
-                  </Text>
-                </View>
-                <View className="items-end shrink-0 pl-2">
-                  <Text className="font-bold text-gray-900 text-sm tabular-nums">
-                    {formatCurrency(item.amount_ttc)}
-                  </Text>
-                  <View
-                    className={`px-2 py-0.5 rounded-md mt-1 ${statusColors[item.status]?.split(' ')[0]}`}
-                  >
-                    <Text
-                      className={`text-[10px] font-bold uppercase tracking-wide ${statusColors[item.status]?.split(' ')[1]}`}
-                    >
-                      {t(`expense.${item.status}`)}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-              <View className="w-[52px] border-l border-gray-100 bg-gray-50/80 items-center justify-center">
-                <Pressable
-                  className="p-2 rounded-lg active:bg-gray-200/80"
-                  onPress={() =>
-                    setWebActionMenuId(prev => (prev === item.id ? null : item.id))
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={t('employee.webExpenseActionsMenu')}
-                >
-                  <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
-                </Pressable>
-              </View>
-            </View>
-            {(item.is_fiscal_alert || item.is_flagged_duplicate) && (
-              <View className="flex-row flex-wrap gap-2 px-4 pb-3 pt-0 border-t border-gray-100 bg-surface/50">
-                {item.is_fiscal_alert ? (
-                  <View className="bg-red-50 rounded-md px-2 py-1">
-                    <Text className="text-red-700 text-[11px] font-medium">
-                      ⚠️ {t('alerts.fiscalTitle')}
-                    </Text>
-                  </View>
-                ) : null}
-                {item.is_flagged_duplicate ? (
-                  <View className="bg-amber-50 rounded-md px-2 py-1">
-                    <Text className="text-amber-800 text-[11px] font-medium">
-                      🔄 {t('alerts.duplicateTitle')}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-        </View>
+        <WebExpenseRowWeb
+          item={item}
+          expanded={webExpandedRowId === item.id}
+          cardX={cardX}
+          navigation={navigation}
+          t={t}
+          onToggleExpand={() =>
+            setWebExpandedRowId(prev => (prev === item.id ? null : item.id))
+          }
+          onCollapse={() => setWebExpandedRowId(null)}
+          onOpenDelete={openDeleteConfirm}
+        />
       );
     }
 
@@ -453,97 +573,145 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   return (
     <View className="flex-1 bg-surface">
-      <View
-        className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
-        style={[
-          { paddingTop: headerPaddingTop(insets.top) },
-          IS_WEB ? webHeaderOuterInlineStyle : { paddingBottom: 8 },
-        ]}
-      >
-        <View
-          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
-          style={[
-            {
-              backgroundColor: theme.heroHeaderBg,
-              borderWidth: 1,
-              borderColor: theme.heroHeaderBorder,
-              ...heroHeaderShadow,
-            },
-            IS_WEB ? webHeroCardInlineStyle : null,
-          ]}
-        >
-          {IS_WEB ? (
-            <>
-              <View className="flex-row flex-wrap gap-3 items-start justify-between">
-                <View className="flex-1 min-w-[220px]">
-                  <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
-                    {t('common.appName')}
-                  </AppNameText>
-                  <ScreenHeroTitle className="mt-1 leading-snug">{t('employee.title')}</ScreenHeroTitle>
-                  <Text className="text-gray-500 text-xs mt-0.5">{profile.full_name}</Text>
-                </View>
-                <View className="flex-row gap-2 shrink-0 items-start">
-                  <View
-                    className="bg-white/90 rounded-lg border border-gray-200/80 min-w-[88px]"
-                    style={webHeroStatBoxStyle}
-                  >
-                    <Text className="text-gray-500 text-[9px] font-semibold uppercase tracking-wide">
-                      {t('admin.totalExpenses')}
-                    </Text>
-                    <Text className="text-base font-bold mt-0.5" style={{ color: theme.brandInk }}>
-                      {expenses.length}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <TouchableOpacity
-                      onPress={openFilterModal}
-                      className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2"
-                      style={{
-                        borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
-                        backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
-                      }}
-                    >
-                      <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
-                      <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                        {t('employee.filterNotes')}
-                      </Text>
-                      {filtersActive ? (
-                        <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
-                          <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
-                        </View>
-                      ) : null}
-                    </TouchableOpacity>
-                    <View
-                      className="bg-white/90 rounded-lg border border-primary-200/60 min-w-[88px] mt-2 w-full"
-                      style={webHeroStatBoxStyle}
-                    >
-                      <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
-                        {t('expense.pending')}
-                      </Text>
-                      <Text className="text-base font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
-                    </View>
-                  </View>
+      {IS_WEB ? (
+        <View className="flex-1 min-h-0">
+          <View
+            className={`${pageX} pb-2 shrink-0`}
+            style={{ paddingTop: headerPaddingTop(insets.top) }}
+          >
+            <View className="flex-row items-start justify-between border-b border-gray-200/80 pb-3">
+              <View className="flex-1 min-w-0 pr-3">
+                <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
+                  {t('common.appName')}
+                </AppNameText>
+                <ScreenHeroTitle className="mt-1 text-xl leading-snug">{t('employee.scanReceipt')}</ScreenHeroTitle>
+                <Text className="text-gray-500 text-xs mt-0.5">{profile.full_name}</Text>
+              </View>
+              <TouchableOpacity
+                className="flex-row items-center gap-2 px-3 py-2 rounded-lg border border-gray-200/90 bg-white shrink-0"
+                onPress={() => navigation.navigate('NewExpense')}
+              >
+                <Ionicons name="add-outline" size={18} color={theme.brandInk} />
+                <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                  {t('employee.manualEntry')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View className="flex-row gap-3 mt-3">
+              <View className="flex-1 rounded-xl border border-gray-200/90 bg-white px-3 py-2.5">
+                <Text className="text-gray-500 text-[9px] font-semibold uppercase tracking-wide">
+                  {t('admin.totalExpenses')}
+                </Text>
+                <Text className="text-lg font-bold mt-0.5" style={{ color: theme.brandInk }}>
+                  {expenses.length}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-xl border border-primary-200/60 bg-primary-50/50 px-3 py-2.5">
+                <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
+                  {t('expense.pending')}
+                </Text>
+                <Text className="text-lg font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={() => navigation.navigate('NewExpense')}
+              className="mt-4 rounded-xl border-2 border-dashed border-gray-300/90 bg-surface/80 px-5 py-5 flex-row items-center gap-4 active:opacity-95"
+            >
+              <View className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100 shrink-0">
+                <Ionicons name="cloud-upload-outline" size={28} color={theme.brandPrimary} />
+              </View>
+              <View className="flex-1 min-w-0">
+                <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
+                  {t('employee.scanDropTitle')}
+                </Text>
+                <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
+                  {t('employee.scanDropDesc')}
+                </Text>
+                <View className="mt-2 flex-row items-center gap-2 self-start bg-primary-600 rounded-lg px-4 py-2">
+                  <Ionicons name="folder-open-outline" size={16} color="#fff" />
+                  <Text className="text-white font-semibold text-xs">{t('employee.browseFiles')}</Text>
                 </View>
               </View>
-              <View className="flex-row flex-wrap gap-2 mt-2 justify-end items-center">
+            </Pressable>
+
+            <View className="flex-row flex-wrap items-center justify-between gap-2 mt-4 mb-1">
+              <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                {t('employee.recentScanned')}
+              </Text>
+              <View className="flex-row items-center gap-2">
                 <TouchableOpacity
-                  onPress={() => navigation.navigate('NewExpense')}
-                  className="flex-row items-center gap-2 bg-primary-600 rounded-lg px-4 py-2 active:opacity-90"
+                  onPress={openFilterModal}
+                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
                   style={{
-                    shadowColor: theme.brandPrimary,
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 8,
-                    elevation: 4,
+                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
                   }}
                 >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text className="text-white text-sm font-bold">{t('employee.newExpense')}</Text>
+                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                    {t('employee.filterNotes')}
+                  </Text>
+                  {filtersActive ? (
+                    <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setListFilters({})}>
+                  <Text style={{ color: theme.brandPrimary, fontWeight: '500', fontSize: 14 }}>
+                    {t('employee.viewAll')}
+                  </Text>
                 </TouchableOpacity>
               </View>
-            </>
-          ) : (
-            <>
+            </View>
+          </View>
+
+          <FlatList
+            data={expenses}
+            keyExtractor={item => item.id}
+            renderItem={renderExpense}
+            ListHeaderComponent={webListTableHeader}
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{
+              paddingTop: 4,
+              paddingBottom: 32,
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void fetchExpenses(listFilters, { pull: true })}
+              />
+            }
+            ListEmptyComponent={
+              <View className="items-center mt-20">
+                <Text className="text-6xl mb-4">📋</Text>
+                <Text className="text-gray-500 text-lg font-medium">
+                  {t('employee.noExpenses')}
+                </Text>
+                <Text className="text-gray-400 mt-1">
+                  {t('employee.noExpensesDesc')}
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      ) : (
+        <View className="flex-1">
+          <View
+            className={`${pageX} pb-2`}
+            style={{ paddingTop: headerPaddingTop(insets.top), paddingBottom: 8 }}
+          >
+            <View
+              className="rounded-[28px] px-6 py-6"
+              style={{
+                backgroundColor: theme.heroHeaderBg,
+                borderWidth: 1,
+                borderColor: theme.heroHeaderBorder,
+                ...heroHeaderShadow,
+              }}
+            >
               <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
                 {t('common.appName')}
               </AppNameText>
@@ -581,38 +749,38 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   ) : null}
                 </TouchableOpacity>
               </View>
-            </>
-          )}
-        </View>
-      </View>
-
-      <FlatList
-        data={expenses}
-        keyExtractor={item => item.id}
-        renderItem={renderExpense}
-        ListHeaderComponent={webListTableHeader}
-        contentContainerStyle={{
-          paddingTop: IS_WEB ? 8 : 12,
-          paddingBottom: IS_WEB ? 32 : 110,
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => void fetchExpenses(listFilters, { pull: true })}
-          />
-        }
-        ListEmptyComponent={
-          <View className="items-center mt-20">
-            <Text className="text-6xl mb-4">📋</Text>
-            <Text className="text-gray-500 text-lg font-medium">
-              {t('employee.noExpenses')}
-            </Text>
-            <Text className="text-gray-400 mt-1">
-              {t('employee.noExpensesDesc')}
-            </Text>
+            </View>
           </View>
-        }
-      />
+          <FlatList
+            data={expenses}
+            keyExtractor={item => item.id}
+            renderItem={renderExpense}
+            ListHeaderComponent={webListTableHeader}
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingTop: 12,
+              paddingBottom: 110,
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void fetchExpenses(listFilters, { pull: true })}
+              />
+            }
+            ListEmptyComponent={
+              <View className="items-center mt-20">
+                <Text className="text-6xl mb-4">📋</Text>
+                <Text className="text-gray-500 text-lg font-medium">
+                  {t('employee.noExpenses')}
+                </Text>
+                <Text className="text-gray-400 mt-1">
+                  {t('employee.noExpensesDesc')}
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      )}
 
       {!IS_WEB ? (
         <TouchableOpacity
@@ -630,64 +798,6 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         >
           <Text className="text-white text-3xl font-light leading-none">+</Text>
         </TouchableOpacity>
-      ) : null}
-
-      {IS_WEB ? (
-        <Modal
-          visible={!!webActionMenuId}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setWebActionMenuId(null)}
-        >
-          <View className="flex-1 justify-center items-center px-5">
-            <Pressable className="absolute inset-0 bg-black/35" onPress={() => setWebActionMenuId(null)} />
-            <View className="bg-white rounded-xl border border-gray-200 w-full max-w-[300px] z-10 overflow-hidden shadow-2xl">
-              {webExpenseForActionMenu ? (
-                <>
-                  <Pressable
-                    className={`flex-row items-center gap-3 px-4 py-3.5 active:bg-gray-50 ${
-                      webExpenseForActionMenu.status === 'pending' ? 'border-b border-gray-100' : ''
-                    }`}
-                    onPress={() => {
-                      const e = webExpenseForActionMenu;
-                      setWebActionMenuId(null);
-                      navigation.navigate('ExpenseDetail', { expense: e });
-                    }}
-                  >
-                    <Ionicons name="eye-outline" size={22} color={swipeStyles.iconView} />
-                    <Text className="text-base font-semibold text-gray-900">{t('employee.swipeView')}</Text>
-                  </Pressable>
-                  {webExpenseForActionMenu.status === 'pending' ? (
-                    <>
-                      <Pressable
-                        className="flex-row items-center gap-3 px-4 py-3.5 border-b border-gray-100 active:bg-gray-50"
-                        onPress={() => {
-                          const e = webExpenseForActionMenu;
-                          setWebActionMenuId(null);
-                          navigation.navigate('NewExpense', { editExpense: e });
-                        }}
-                      >
-                        <Ionicons name="create-outline" size={22} color={swipeStyles.iconEdit} />
-                        <Text className="text-base font-semibold text-gray-900">{t('common.edit')}</Text>
-                      </Pressable>
-                      <Pressable
-                        className="flex-row items-center gap-3 px-4 py-3.5 active:bg-red-50"
-                        onPress={() => {
-                          const id = webExpenseForActionMenu.id;
-                          setWebActionMenuId(null);
-                          openDeleteConfirm(id);
-                        }}
-                      >
-                        <Ionicons name="trash-outline" size={22} color={swipeStyles.iconDelete} />
-                        <Text className="text-base font-semibold text-red-600">{t('common.delete')}</Text>
-                      </Pressable>
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-            </View>
-          </View>
-        </Modal>
       ) : null}
 
       <Modal

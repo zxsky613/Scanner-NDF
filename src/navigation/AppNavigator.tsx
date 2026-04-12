@@ -1,6 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Platform, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +17,8 @@ import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
-import { IS_WEB, webBottomTabBarStyle } from '../config/webLayout';
+import { IS_WEB, webLeftTabBarStyle } from '../config/webLayout';
+import { WebDesktopSidebar } from '../components/WebDesktopSidebar';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -102,7 +103,7 @@ type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 const TabIcon = ({ name, focused }: { name: TabIconName; focused: boolean }) => {
   return (
     <View
-           className={`items-center justify-center rounded-full min-w-[52px] min-h-[44px] ${
+      className={`items-center justify-center rounded-full min-w-[44px] min-h-[40px] ${
         focused ? 'bg-primary-50' : ''
       }`}
     >
@@ -142,22 +143,39 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
 
   return (
     <Tab.Navigator
+      tabBar={props =>
+        IS_WEB ? (
+          <WebDesktopSidebar {...props} profile={profile} />
+        ) : (
+          <BottomTabBar {...props} />
+        )
+      }
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarStyle: IS_WEB ? webBottomTabBarStyle() : mobileTabBarStyle,
+        tabBarPosition: IS_WEB ? 'left' : 'bottom',
+        tabBarVariant: IS_WEB ? 'material' : 'uikit',
+        tabBarStyle: IS_WEB ? webLeftTabBarStyle() : mobileTabBarStyle,
+        tabBarBackground: undefined,
+        sceneStyle: IS_WEB ? { backgroundColor: theme.surface, flex: 1 } : undefined,
         tabBarActiveTintColor: theme.brandInk,
         tabBarInactiveTintColor: theme.inkMuted,
-        tabBarItemStyle: {
-          paddingVertical: 4,
-          minWidth: 56,
-        },
+        tabBarItemStyle: IS_WEB
+          ? {
+              paddingVertical: 6,
+              minHeight: 48,
+              borderRadius: 12,
+            }
+          : {
+              paddingVertical: 4,
+              minWidth: 56,
+            },
         tabBarLabelStyle: {
           fontFamily: Font.semibold,
-          fontSize: IS_WEB ? 12 : 11,
+          fontSize: IS_WEB ? 13 : 11,
           fontWeight: '600',
-          letterSpacing: 0.15,
-          marginTop: 2,
+          letterSpacing: 0.12,
+          marginTop: IS_WEB ? 0 : 2,
         },
       }}
     >

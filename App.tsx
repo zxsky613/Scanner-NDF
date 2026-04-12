@@ -4,7 +4,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, Theme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initI18n } from './src/i18n';
 import { theme } from './src/config/theme';
@@ -14,6 +14,18 @@ import { AuthNavigator, MainNavigator } from './src/navigation/AppNavigator';
 import { AppAlertModalHost } from './src/components/AppAlertModalHost';
 import { BrandLogo } from './src/components/BrandLogo';
 import { IS_WEB, webAppShellInner, webAppShellOuter } from './src/config/webLayout';
+
+const webNavigationTheme: Theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: theme.surface,
+    card: '#ffffff',
+    border: 'rgba(36, 41, 73, 0.1)',
+    text: theme.brandInk,
+    primary: theme.brandPrimary,
+  },
+};
 
 const AppContent: React.FC = () => {
   const { session, profile, loading, signIn, signUp, signOut, isAdmin } = useAuth();
@@ -76,7 +88,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer theme={IS_WEB ? webNavigationTheme : DefaultTheme}>
           {IS_WEB ? (
             <View style={webAppShellOuter}>
               <View style={webAppShellInner}>

@@ -123,7 +123,18 @@
     "filterCategoryAll": "All categories",
     "filterApply": "Apply",
     "filterReset": "Clear filters",
-    "filtersActive": "Filters on"
+    "filtersActive": "Filters on",
+    "webNavMain": "Main menu",
+    "webNavSettings": "Settings",
+    "recentScanned": "Recent expenses",
+    "viewAll": "View all",
+    "scanDropTitle": "Drag and drop your receipt here",
+    "scanDropDesc": "Supported formats: JPG, PNG, PDF up to 10 MB. Analysis will extract the data automatically.",
+    "browseFiles": "Browse files",
+    "manualEntry": "Manual entry",
+    "documentAnalysisTitle": "Document analysis",
+    "aiExtractionBadge": "AI extraction",
+    "validateExpense": "Submit expense"
   },
   "expense": {
     "date": "Date",

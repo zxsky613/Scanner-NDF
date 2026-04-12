@@ -16,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
 import { showAppAlert } from '../../utils/alert';
 import { theme } from '../../config/theme';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -77,8 +78,14 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-1 justify-center px-8 pb-12 w-full items-center">
-          <View className="w-full max-w-md self-center">
+        <View className={`flex-1 justify-center pb-12 w-full items-center ${IS_WEB ? 'px-10' : 'px-8'}`}>
+          <View
+            className={`w-full max-w-md self-center ${
+              IS_WEB
+                ? 'rounded-[28px] bg-white border border-gray-200/70 px-8 py-11 shadow-xl'
+                : ''
+            }`}
+          >
             <View className="items-center mb-10">
               <BrandLogo size={100} />
               <AppNameText className="text-3xl text-ink tracking-[-0.02em] mt-1">

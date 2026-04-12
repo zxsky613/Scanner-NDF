@@ -25,7 +25,7 @@ import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IS_WEB } from '../../config/webLayout';
+import { IS_WEB, WEB_PAGE_GUTTER_CLASS } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -53,7 +53,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const [expenseRow, setExpenseRow] = useState<Expense>(route.params.expense);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);

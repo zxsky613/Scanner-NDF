@@ -2,8 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Web (Expo) : base typographique alignée sur les polices chargées dans App.tsx */
+/* Tokens optionnels (alignés sur theme.ts : brandPrimary, brandInk, surface) */
+:root {
+  --app-background: #f2f6f8;
+  --app-foreground: #242949;
+  --app-primary: #609fb5;
+  --app-border: rgba(36, 41, 73, 0.1);
+  --app-muted: #f1f5f9;
+  --app-card: #ffffff;
+}
+
+/* Web : base pro (lisibilité, fond, défilement) — palette alignée sur theme.surface / ink */
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   html,
   body,
   #root {
@@ -11,10 +26,49 @@
     height: 100%;
   }
 
+  body {
+    margin: 0;
+    background: linear-gradient(165deg, #e8edf5 0%, #f2f6f8 38%, #eef2f8 100%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background-color: rgba(96, 159, 181, 0.28);
+    color: #242949;
+  }
+
   /* Web : comportement souris cohérent avec une app bureau */
   a[href],
   button,
   [role='button'] {
     cursor: pointer;
+  }
+}
+
+/* Scrollbar discrète (Chromium / Safari) */
+@layer utilities {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(36, 41, 73, 0.22) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(36, 41, 73, 0.18);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(36, 41, 73, 0.28);
   }
 }

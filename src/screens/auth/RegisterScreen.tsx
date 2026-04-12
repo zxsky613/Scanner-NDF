@@ -20,6 +20,7 @@ import { showAppAlert } from '../../utils/alert';
 import { isEmailAlreadyRegisteredError } from '../../utils/authErrors';
 import { theme, headerPaddingTop } from '../../config/theme';
 import { FINANCE_REGISTRATION_ACCESS_CODE } from '../../config/financeRegistration';
+import { IS_WEB } from '../../config/webLayout';
 
 const REGISTER_ROLE_OPTIONS: UserRole[] = ['employee', 'finance'];
 const REGISTER_ROLE_ICONS: Record<UserRole, string> = {
@@ -131,8 +132,14 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="px-8 pb-12 w-full items-center">
-          <View className="w-full max-w-md self-center">
+        <View className={`pb-12 w-full items-center ${IS_WEB ? 'px-10' : 'px-8'}`}>
+          <View
+            className={`w-full max-w-md self-center ${
+              IS_WEB
+                ? 'rounded-[28px] bg-white border border-gray-200/70 px-8 py-10 shadow-xl'
+                : ''
+            }`}
+          >
             <View className="items-center mb-10">
               <BrandLogo size={88} />
               <AppNameText className="text-2xl text-ink text-center mt-1 tracking-[-0.02em]">

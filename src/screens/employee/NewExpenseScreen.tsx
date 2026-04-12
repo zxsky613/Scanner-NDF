@@ -13,6 +13,7 @@ import {
   Modal,
   Pressable,
   useWindowDimensions,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,12 +29,12 @@ import { extractReceiptData } from '../../lib/aiExtraction';
 import { uploadReceiptImage } from '../../lib/storage';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
-import { maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
+import { formatCurrency, maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
 import { parseMoney, roundMoney } from '../../utils/money';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
-import { IS_WEB } from '../../config/webLayout';
+import { IS_WEB, WEB_PAGE_GUTTER_CLASS, WEB_RIGHT_PANEL_W } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -79,7 +80,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const editExpense = route.params?.editExpense;
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const { createExpense, updateExpense, checkDuplicate } = useExpenses(profile.id);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [initialReceiptUrl, setInitialReceiptUrl] = useState<string | null>(null);
@@ -452,18 +453,24 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     );
   }
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-surface"
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          /* Tab bar + indicateur d’accueil : éviter que « Envoyer » paraisse absent ou coupé. */
-          paddingBottom: Math.max(insets.bottom, 12) + 100,
-        }}
-      >
+  const mainScrollPaddingBottom = IS_WEB
+    ? Math.max(insets.bottom, 12) + 32
+    : Math.max(insets.bottom, 12) + 100;
+
+  const webRightPanelOuter: ViewStyle = {
+    width: WEB_RIGHT_PANEL_W,
+    flexShrink: 0,
+    flex: 1,
+    flexDirection: 'column',
+    minHeight: 0,
+    backgroundColor: '#ffffff',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(36, 41, 73, 0.1)',
+  };
+
+  function renderMainScroll() {
+    return (
+      <>
         <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
           <View
             className={`rounded-[28px] py-5 ${pageX}`}
@@ -508,7 +515,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           </View>
 
           {/* Justificatif : menu voir / remplacer ; miniature via URL signée si besoin */}
-          {imageUri && (
+          {imageUri && !IS_WEB && (
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => setReceiptMenuVisible(true)}
@@ -700,33 +707,177 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             )}
           </View>
 
-          {/* Submit */}
-          <TouchableOpacity
-            className={`rounded-full py-4 items-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
-            onPress={handleSubmit}
-            disabled={saving}
-            style={
-              saving
-                ? undefined
-                : {
-                    shadowColor: theme.brandPrimary,
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.35,
-                    shadowRadius: 12,
-                    elevation: 8,
-                  }
-            }
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white font-bold text-base">
-                {editingId ? t('common.save') : t('employee.sendExpense')}
-              </Text>
-            )}
-          </TouchableOpacity>
+          {/* Submit (mobile ; web : panneau droit) */}
+          {!IS_WEB ? (
+            <TouchableOpacity
+              className={`rounded-full py-4 items-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
+              onPress={handleSubmit}
+              disabled={saving}
+              style={
+                saving
+                  ? undefined
+                  : {
+                      shadowColor: theme.brandPrimary,
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 12,
+                      elevation: 8,
+                    }
+              }
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-bold text-base">
+                  {editingId ? t('common.save') : t('employee.sendExpense')}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
-      </ScrollView>
+      </>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-surface"
+    >
+      {IS_WEB ? (
+        <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
+          <ScrollView
+            className="flex-1"
+            style={{ flex: 1, minWidth: 0 }}
+            contentContainerStyle={{ paddingBottom: mainScrollPaddingBottom }}
+          >
+            {renderMainScroll()}
+          </ScrollView>
+          <View style={webRightPanelOuter}>
+            <View
+              className="flex-row items-center justify-between px-4 py-3 border-b border-gray-200/80"
+              style={{ paddingTop: Math.max(insets.top, 8) + 8 }}
+            >
+              <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
+                {t('employee.documentAnalysisTitle')}
+              </Text>
+              <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+                <Ionicons name="close" size={22} color={theme.inkMuted} />
+              </Pressable>
+            </View>
+            <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 16 }} style={{ flex: 1 }}>
+              <View className="w-full rounded-lg overflow-hidden border border-gray-200/90 bg-surface mt-3 relative">
+                {analyzing ? (
+                  <View className="h-[200px] items-center justify-center">
+                    <ActivityIndicator color={theme.brandPrimary} />
+                  </View>
+                ) : receiptDisplayUri || imageUri ? (
+                  <>
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        zIndex: 2,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: theme.brandPrimary,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Ionicons name="sparkles-outline" size={14} color="#ffffff" />
+                      <Text className="text-white text-xs font-semibold ml-1">
+                        {t('employee.aiExtractionBadge')}
+                      </Text>
+                    </View>
+                    <Image
+                      source={{ uri: (receiptDisplayUri ?? imageUri) as string }}
+                      style={{ width: '100%', height: 200 }}
+                      resizeMode="cover"
+                      onError={() => setReceiptImageError(true)}
+                    />
+                  </>
+                ) : (
+                  <View className="h-[200px] items-center justify-center px-4">
+                    <Ionicons name="document-outline" size={48} color={theme.inkMuted} />
+                    <Text className="text-gray-500 text-sm mt-2 text-center">{t('employee.scanReceipt')}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View className="mt-4">
+                <Text className="text-[13px] font-medium text-gray-500">{t('expense.supplier')}</Text>
+                <Text className="text-gray-900 font-medium mt-1">{supplier.trim() ? supplier : '—'}</Text>
+
+                <View className="flex-row gap-3 mt-3">
+                  <View className="flex-1">
+                    <Text className="text-[13px] font-medium text-gray-500">{t('expense.receiptDate')}</Text>
+                    <Text className="text-gray-900 font-medium mt-1">
+                      {receiptDateInput.trim() ? receiptDateInput : '—'}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[13px] font-medium text-gray-500">{t('expense.amountTTC')}</Text>
+                    <Text className="text-gray-900 font-semibold mt-1">
+                      {parseMoney(amountTTC) != null ? formatCurrency(parseMoney(amountTTC)!) : '—'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="mt-3">
+                  <Text className="text-[13px] font-medium text-gray-500">{t('expense.vatAmount')}</Text>
+                  <Text className="text-gray-900 font-medium mt-1">
+                    {vatDetails[0] ? `${roundMoney(vatDetails[0].amount).toFixed(2)} €` : '—'}
+                  </Text>
+                </View>
+
+                <View className="mt-3">
+                  <Text className="text-[13px] font-medium text-gray-500">{t('expense.category')}</Text>
+                  <Text className="text-gray-900 font-medium mt-1">{t(`expense.${category}`)}</Text>
+                </View>
+              </View>
+            </ScrollView>
+            <View
+              className="flex-row gap-3 px-4 py-4 border-t border-gray-200/80"
+              style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+            >
+              <TouchableOpacity
+                className="flex-row items-center justify-center border border-gray-200 rounded-lg px-3 py-2.5"
+                onPress={() => {
+                  setImageUri(null);
+                  setReceiptDisplayUri(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.delete')}
+              >
+                <Ionicons name="trash-outline" size={20} color={theme.brandInk} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 py-3 rounded-lg items-center justify-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
+                onPress={handleSubmit}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white font-bold text-base">{t('employee.validateExpense')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            paddingBottom: mainScrollPaddingBottom,
+          }}
+        >
+          {renderMainScroll()}
+        </ScrollView>
+      )}
 
       <Modal
         visible={receiptPreviewOpen && !!(receiptDisplayUri ?? imageUri)}
