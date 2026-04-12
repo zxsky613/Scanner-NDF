@@ -37,6 +37,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../i18n';
 import { showAppAlert } from '../../utils/alert';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -63,6 +64,8 @@ function sortExpensesByCreatedDesc(a: Expense, b: Expense): number {
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
   const { expenses, refreshing, fetchExpenses, updateExpenseStatus } = useExpenses(
     profile.id,
     true
@@ -283,7 +286,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   };
 
   const renderExpenseCard = (item: Expense) => (
-    <View className="bg-white rounded-[22px] p-5 mb-3 mx-5 border border-gray-100/80 shadow-sm">
+    <View className={`bg-white rounded-[22px] p-5 mb-3 border border-gray-100/80 shadow-sm ${cardX}`}>
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => openExpenseDetail(item)}
@@ -291,26 +294,42 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         accessibilityLabel={t('admin.viewDetails')}
       >
         <View className="flex-row items-start justify-between mb-1">
-          <View className="flex-1 pr-2">
+          <View className={`flex-1 pr-2 ${IS_WEB ? 'min-w-0' : ''}`}>
             <Text className="font-semibold text-gray-900 text-base">
               {t(`expense.${item.category}`)}
             </Text>
             <Text className="text-gray-500 text-sm mt-0.5">
               {(item.profiles as Profile | undefined)?.full_name ?? '—'}
             </Text>
-            <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={2}>
+            <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={IS_WEB ? 1 : 2}>
               {item.supplier}
               {item.city?.trim() ? ` · ${item.city.trim()}` : ''}
             </Text>
-            <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
-              {t('expense.receiptDate')}: {formatDate(item.receipt_date)}
-            </Text>
-            <Text className="text-gray-400 text-[11px] mt-0.5" numberOfLines={1}>
-              {t('expense.requestCreatedAt')}:{' '}
-              {item.created_at ? formatDate(item.created_at) : '—'}
-            </Text>
+            {!IS_WEB ? (
+              <>
+                <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
+                  {t('expense.receiptDate')}: {formatDate(item.receipt_date)}
+                </Text>
+                <Text className="text-gray-400 text-[11px] mt-0.5" numberOfLines={1}>
+                  {t('expense.requestCreatedAt')}:{' '}
+                  {item.created_at ? formatDate(item.created_at) : '—'}
+                </Text>
+              </>
+            ) : null}
           </View>
-          <View className="items-end">
+          {IS_WEB ? (
+            <View className="w-[168px] shrink-0 border-l border-gray-100 pl-4">
+              <Text className="text-gray-400 text-[11px]">{t('expense.receiptDate')}:</Text>
+              <Text className="text-gray-600 text-[11px]">{formatDate(item.receipt_date)}</Text>
+              <Text className="text-gray-400 text-[11px] mt-2">
+                {t('expense.requestCreatedAt')}:
+              </Text>
+              <Text className="text-gray-600 text-[11px]">
+                {item.created_at ? formatDate(item.created_at) : '—'}
+              </Text>
+            </View>
+          ) : null}
+          <View className={`items-end ${IS_WEB ? 'w-[132px] shrink-0' : ''}`}>
             <Text className="font-bold text-gray-900">{formatCurrency(item.amount_ttc)}</Text>
             <Text className="text-gray-400 text-xs mt-0.5">
               HT: {formatCurrency(item.amount_ht)}
@@ -329,15 +348,19 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       </TouchableOpacity>
 
       {item.status === 'pending' && (
-        <View className="flex-row gap-2 mt-2">
+        <View className={`flex-row gap-2 mt-2 ${IS_WEB ? 'justify-end flex-wrap' : ''}`}>
           <TouchableOpacity
-            className="flex-1 bg-emerald-500 rounded-full py-3 items-center"
+            className={`bg-emerald-500 rounded-full py-3 items-center ${
+              IS_WEB ? 'px-8 min-w-[140px]' : 'flex-1'
+            }`}
             onPress={() => handleApprove(item.id)}
           >
             <Text className="text-white font-bold text-sm">✓ {t('admin.approve')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="flex-1 bg-red-500 rounded-full py-3 items-center"
+            className={`bg-red-500 rounded-full py-3 items-center ${
+              IS_WEB ? 'px-8 min-w-[140px]' : 'flex-1'
+            }`}
             onPress={() => setRejectModal(item.id)}
           >
             <Text className="text-white font-bold text-sm">✕ {t('admin.reject')}</Text>
@@ -369,7 +392,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       const expanded = isPending ? pendingSectionExpanded : processedSectionExpanded;
       return (
         <TouchableOpacity
-          className={`mx-5 mb-1 flex-row items-center justify-between py-3 px-1 active:opacity-80 ${
+          className={`${cardX} mb-1 flex-row items-center justify-between py-3 px-1 active:opacity-80 ${
             isPending ? 'mt-2 pt-2' : 'mt-4'
           }`}
           onPress={() =>
@@ -407,7 +430,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
 
   return (
     <View className="flex-1 bg-surface">
-      <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
           className="rounded-[28px] px-6 py-6"
           style={{
@@ -424,20 +447,28 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
           <Text className="text-gray-400 text-sm mt-2">
             {profile.full_name} · {userRoleLabel(profile.role, t)}
           </Text>
-          <View className="flex-row gap-2.5 mt-5">
-            <View className="flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
+          <View className={`flex-row gap-2.5 mt-5 ${IS_WEB ? 'flex-wrap' : ''}`}>
+            <View className={`bg-surface rounded-2xl px-3 py-3 border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalExpenses')}</Text>
               <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
                 {totals.count}
               </Text>
             </View>
-            <View className="flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
+            {IS_WEB ? (
+              <View className="min-w-[140px] flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
+                <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalHT')}</Text>
+                <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
+                  {formatCurrency(totals.ht)}
+                </Text>
+              </View>
+            ) : null}
+            <View className={`bg-surface rounded-2xl px-3 py-3 border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalTTC')}</Text>
               <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
                 {formatCurrency(totals.ttc)}
               </Text>
             </View>
-            <View className="flex-1 bg-amber-50 rounded-2xl px-3 py-3 border border-amber-100">
+            <View className={`bg-amber-50 rounded-2xl px-3 py-3 border border-amber-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
               <Text className="text-amber-700 text-[11px] font-semibold">{t('admin.pendingCount')}</Text>
               <Text className="text-amber-800 font-bold text-lg mt-0.5">{totals.pending}</Text>
             </View>
@@ -445,9 +476,13 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         </View>
       </View>
 
-      <View className="flex-row gap-3 px-5 mt-3">
+      <View
+        className={`flex-row gap-3 mt-3 ${pageX} ${IS_WEB ? 'justify-center flex-wrap' : ''}`}
+      >
         <TouchableOpacity
-          className="flex-1 bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm"
+          className={`bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm ${
+            IS_WEB ? 'px-10 min-w-[200px]' : 'flex-1'
+          }`}
           onPress={() => {
             setFilterSheetView('main');
             void loadEmployeesWithExpenses();
@@ -458,7 +493,9 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
           <Text className="text-gray-800 font-bold text-sm">{t('common.filter')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          className="flex-1 bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm"
+          className={`bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm ${
+            IS_WEB ? 'px-10 min-w-[200px]' : 'flex-1'
+          }`}
           onPress={handleExport}
           disabled={exporting}
         >
@@ -489,7 +526,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         }
         ListEmptyComponent={
           expenses.length === 0 ? (
-            <View className="mx-5 mt-8 bg-white rounded-[28px] border border-gray-100 px-8 py-14 items-center shadow-sm">
+            <View className={`${cardX} mt-8 bg-white rounded-[28px] border border-gray-100 px-8 py-14 items-center shadow-sm`}>
               <View className="w-20 h-20 rounded-full bg-primary-50 items-center justify-center mb-5">
                 <Text className="text-4xl">📋</Text>
               </View>
@@ -506,14 +543,37 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         transparent
         onRequestClose={closeFilterModal}
       >
-        <View className="flex-1 justify-end">
+        <View
+          className="flex-1 justify-end"
+          style={
+            IS_WEB
+              ? { justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 }
+              : undefined
+          }
+        >
           <Pressable
             className="absolute inset-0 bg-black/40"
             onPress={closeFilterModal}
             accessibilityRole="button"
             accessibilityLabel={t('common.cancel')}
           />
-          <View className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[92%] relative overflow-visible">
+          <View
+            className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[92%] relative overflow-visible"
+            style={
+              IS_WEB
+                ? {
+                    borderRadius: 24,
+                    maxHeight: '85%',
+                    maxWidth: 560,
+                    width: '100%',
+                    alignSelf: 'center',
+                    borderTopWidth: 0,
+                    borderWidth: 1,
+                    borderColor: 'rgba(36, 41, 73, 0.08)',
+                  }
+                : undefined
+            }
+          >
             {filterSheetView === 'main' ? (
               <ScrollView
                 keyboardShouldPersistTaps="handled"

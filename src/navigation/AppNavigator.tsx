@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform } from 'react-native';
+import { View, Platform, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -17,6 +17,7 @@ import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { IS_WEB, webBottomTabBarStyle } from '../config/webLayout';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -101,7 +102,7 @@ type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 const TabIcon = ({ name, focused }: { name: TabIconName; focused: boolean }) => {
   return (
     <View
-      className={`items-center justify-center rounded-full min-w-[52px] min-h-[44px] ${
+           className={`items-center justify-center rounded-full min-w-[52px] min-h-[44px] ${
         focused ? 'bg-primary-50' : ''
       }`}
     >
@@ -122,27 +123,29 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   const { t } = useTranslation();
   const { unreadCount } = useNotificationsContext();
 
+  const mobileTabBarStyle: ViewStyle = {
+    height: Platform.OS === 'ios' ? 92 : 80,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+    paddingHorizontal: 4,
+    borderTopWidth: 0,
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: theme.brandInk,
+          shadowOffset: { width: 0, height: -6 },
+          shadowOpacity: 0.1,
+          shadowRadius: 20,
+        }
+      : { elevation: 20 }),
+  };
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarStyle: {
-          height: Platform.OS === 'ios' ? 92 : 80,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 14,
-          paddingHorizontal: 4,
-          borderTopWidth: 0,
-          backgroundColor: '#FFFFFF',
-          ...(Platform.OS === 'ios'
-            ? {
-                shadowColor: theme.brandInk,
-                shadowOffset: { width: 0, height: -6 },
-                shadowOpacity: 0.1,
-                shadowRadius: 20,
-              }
-            : { elevation: 20 }),
-        },
+        tabBarStyle: IS_WEB ? webBottomTabBarStyle() : mobileTabBarStyle,
         tabBarActiveTintColor: theme.brandInk,
         tabBarInactiveTintColor: theme.inkMuted,
         tabBarItemStyle: {
@@ -151,7 +154,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
         },
         tabBarLabelStyle: {
           fontFamily: Font.semibold,
-          fontSize: 11,
+          fontSize: IS_WEB ? 12 : 11,
           fontWeight: '600',
           letterSpacing: 0.15,
           marginTop: 2,

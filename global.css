@@ -8,5 +8,13 @@
   body,
   #root {
     font-family: Poppins_400Regular, system-ui, sans-serif;
+    height: 100%;
+  }
+
+  /* Web : comportement souris cohérent avec une app bureau */
+  a[href],
+  button,
+  [role='button'] {
+    cursor: pointer;
   }
 }

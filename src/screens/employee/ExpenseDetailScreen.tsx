@@ -25,6 +25,7 @@ import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -52,6 +53,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
   const [expenseRow, setExpenseRow] = useState<Expense>(route.params.expense);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
@@ -156,9 +158,9 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
       keyboardShouldPersistTaps="handled"
       scrollEventThrottle={16}
     >
-      <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
-          className="rounded-[28px] px-5 py-5"
+          className={`rounded-[28px] py-5 ${pageX}`}
           style={{
             backgroundColor: theme.heroHeaderBg,
             borderWidth: 1,
@@ -180,7 +182,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
         </View>
       </View>
 
-      <View className="px-5 mt-5">
+      <View className={`${pageX} mt-5`}>
         {/* Bloc dédié : toute la carte est cliquable (Pressable + styles explicites pour le web) */}
         <View
           className="bg-white rounded-[22px] mb-4 border border-gray-100 shadow-sm"

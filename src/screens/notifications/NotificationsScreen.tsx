@@ -22,6 +22,7 @@ import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IS_WEB } from '../../config/webLayout';
 
 type NotificationsStackParamList = {
   NotificationsHome: undefined;
@@ -73,6 +74,8 @@ function sortByNewest(a: AppNotification, b: AppNotification): number {
 export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
   const {
     notifications,
     loading,
@@ -128,7 +131,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const header = (
-    <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+    <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
       <View
         className="rounded-[28px] px-6 py-6"
         style={{
@@ -169,7 +172,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   const emptyCard = (
-    <View className="mx-5 mt-6 bg-white rounded-[28px] border border-gray-100 shadow-sm px-6 py-12 items-center">
+    <View className={`${cardX} mt-6 bg-white rounded-[28px] border border-gray-100 shadow-sm px-6 py-12 items-center`}>
       <View className="w-20 h-20 rounded-full bg-primary-50 items-center justify-center mb-4">
         <Text className="text-4xl">🔔</Text>
       </View>
@@ -184,7 +187,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
       if (isRead) {
         return (
           <TouchableOpacity
-            className="mx-5 mt-4 mb-1 flex-row items-center justify-between py-3 px-1 active:opacity-80"
+            className={`${cardX} mt-4 mb-1 flex-row items-center justify-between py-3 px-1 active:opacity-80`}
             onPress={() => setTreatedExpanded(v => !v)}
             accessibilityRole="button"
             accessibilityLabel={
@@ -203,7 +206,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
         );
       }
       return (
-        <View className="mx-5 mt-2 mb-1 pt-2">
+        <View className={`${cardX} mt-2 mb-1 pt-2`}>
           <Text className="text-ink font-bold text-base">
             {t('notifications.sectionUnread')} ({item.count})
           </Text>
@@ -217,7 +220,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     const { title: dispTitle, body: dispBody } = getLocalizedNotification(n, t);
     return (
       <TouchableOpacity
-        className={`mx-5 mb-3 p-4 rounded-[22px] bg-white border shadow-sm overflow-hidden flex-row items-center ${
+        className={`${cardX} mb-3 p-4 rounded-[22px] bg-white border shadow-sm overflow-hidden flex-row items-center ${
           needsAttention ? 'border-primary-200' : 'border-gray-100/90'
         }`}
         activeOpacity={0.88}

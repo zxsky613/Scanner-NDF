@@ -9,6 +9,7 @@ import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { userRoleLabel } from '../../utils/userRoleLabel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   profile: Profile;
@@ -24,6 +25,7 @@ const languages: { code: SupportedLanguage; label: string; flag: string }[] = [
 export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
 
   const handleLanguageChange = async (lang: SupportedLanguage) => {
     await changeLanguage(lang);
@@ -42,7 +44,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
 
   return (
     <ScrollView className="flex-1 bg-surface">
-      <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
           className="rounded-[28px] px-6 py-6"
           style={{
@@ -59,7 +61,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
         </View>
       </View>
 
-      <View className="px-5 mt-4">
+      <View className={`${pageX} mt-4`}>
         <View
           className="bg-white rounded-[28px] px-6 py-8 items-center border border-gray-100/80 shadow-sm mb-5"
           style={{
@@ -88,7 +90,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
         </View>
       </View>
 
-      <View className="px-5">
+      <View className={pageX}>
         {/* Language selector */}
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
           <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>

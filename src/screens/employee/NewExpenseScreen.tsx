@@ -33,6 +33,7 @@ import { parseMoney, roundMoney } from '../../utils/money';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -78,6 +79,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const editExpense = route.params?.editExpense;
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
   const { createExpense, updateExpense, checkDuplicate } = useExpenses(profile.id);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [initialReceiptUrl, setInitialReceiptUrl] = useState<string | null>(null);
@@ -462,9 +464,9 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           paddingBottom: Math.max(insets.bottom, 12) + 100,
         }}
       >
-        <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+        <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
           <View
-            className="rounded-[28px] px-5 py-5"
+            className={`rounded-[28px] py-5 ${pageX}`}
             style={{
               backgroundColor: theme.heroHeaderBg,
               borderWidth: 1,
@@ -482,7 +484,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           </View>
         </View>
 
-        <View className="px-5 mt-5">
+        <View className={`${pageX} mt-5`}>
           {/* Image capture buttons */}
           <View className="flex-row gap-3 mb-4">
             <TouchableOpacity
@@ -815,7 +817,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             <View className="items-center pt-3 pb-1">
               <View className="w-9 h-1 rounded-full bg-gray-200" />
             </View>
-            <View className="px-5 pt-4">
+            <View className={`${pageX} pt-4`}>
               <Text className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">
                 {t('employee.receiptMenuSubtitle')}
               </Text>

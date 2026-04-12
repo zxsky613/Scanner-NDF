@@ -29,6 +29,7 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import { showAppAlert } from '../../utils/alert';
+import { IS_WEB } from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -84,6 +85,8 @@ const swipeStyles = {
 export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
+  const pageX = IS_WEB ? 'px-8' : 'px-5';
+  const cardX = IS_WEB ? 'mx-8' : 'mx-5';
   const { expenses, refreshing, fetchExpenses, deleteExpense } = useExpenses(profile.id);
   const [listFilters, setListFilters] = useState<ExpenseFilters>({});
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -258,7 +261,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
     );
 
     return (
-      <View className="mb-3 mx-5">
+      <View className={`mb-3 ${cardX}`}>
         <Swipeable
           ref={registerSwipeRef(item.id)}
           friction={2}
@@ -322,7 +325,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   return (
     <View className="flex-1 bg-surface">
-      <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
         <View
           className="rounded-[28px] px-6 py-6"
           style={{
@@ -397,9 +400,12 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
       />
 
       <TouchableOpacity
-        className="absolute bottom-10 right-6 bg-primary-600 w-16 h-16 rounded-full items-center justify-center"
+        className="absolute bg-primary-600 w-16 h-16 rounded-full items-center justify-center"
         onPress={() => navigation.navigate('NewExpense')}
         style={{
+          /* Web : au-dessus de la barre d’onglets basse (~72px + marge). */
+          bottom: IS_WEB ? 96 : 40,
+          right: IS_WEB ? 32 : 24,
           shadowColor: theme.brandPrimary,
           shadowOffset: { width: 0, height: 10 },
           shadowOpacity: 0.35,

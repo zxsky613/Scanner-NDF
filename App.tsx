@@ -13,6 +13,7 @@ import { useAuth } from './src/hooks/useAuth';
 import { AuthNavigator, MainNavigator } from './src/navigation/AppNavigator';
 import { AppAlertModalHost } from './src/components/AppAlertModalHost';
 import { BrandLogo } from './src/components/BrandLogo';
+import { IS_WEB, webAppShellInner, webAppShellOuter } from './src/config/webLayout';
 
 const AppContent: React.FC = () => {
   const { session, profile, loading, signIn, signUp, signOut, isAdmin } = useAuth();
@@ -76,7 +77,15 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <NavigationContainer>
-          <AppContent />
+          {IS_WEB ? (
+            <View style={webAppShellOuter}>
+              <View style={webAppShellInner}>
+                <AppContent />
+              </View>
+            </View>
+          ) : (
+            <AppContent />
+          )}
         </NavigationContainer>
         <AppAlertModalHost />
       </SafeAreaProvider>
