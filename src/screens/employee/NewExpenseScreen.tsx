@@ -62,6 +62,16 @@ function isLocalReceiptUri(uri: string): boolean {
   );
 }
 
+function formatSubmitFailureDetail(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { message?: string; details?: string; hint?: string };
+    const parts = [e.message, e.details, e.hint].filter(p => typeof p === 'string' && p.trim());
+    if (parts.length) return parts.join('\n');
+  }
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t } = useTranslation();
   const route = useRoute<RouteProp<NewExpenseRouteParams, 'NewExpense'>>();
@@ -272,8 +282,16 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const handleSubmit = async () => {
     const htVal = parseMoney(amountHT);
     const ttcVal = parseMoney(amountTTC);
-    if (!receiptDateInput.trim() || !supplier || htVal === null || ttcVal === null) {
-      showAppAlert(t('common.error'), t('expense.submitError'), 'error');
+    if (!receiptDateInput.trim()) {
+      showAppAlert(t('common.error'), t('expense.receiptDateRequired'), 'error');
+      return;
+    }
+    if (!supplier.trim()) {
+      showAppAlert(t('common.error'), t('expense.supplierRequired'), 'error');
+      return;
+    }
+    if (htVal === null || ttcVal === null) {
+      showAppAlert(t('common.error'), t('expense.amountsInvalid'), 'error');
       return;
     }
 
@@ -304,6 +322,14 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       showAppAlert(t('common.error'), t('expense.ttcLessThanHt'), 'error');
       return;
     }
+
+    const proceedAfterVerify = await showAppConfirm(
+      t('expense.verifyBeforeSubmitTitle'),
+      t('expense.verifyBeforeSubmitMessage'),
+      t('common.cancel'),
+      editingId ? t('common.save') : t('employee.sendExpense')
+    );
+    if (!proceedAfterVerify) return;
 
     if (ttc > FISCAL_ALERT_THRESHOLD) {
       showAppAlert(
@@ -391,8 +417,13 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           () => navigation.goBack()
         );
       }
-    } catch {
-      showAppAlert(t('common.error'), t('expense.submitError'), 'error');
+    } catch (e) {
+      const detail = formatSubmitFailureDetail(e);
+      showAppAlert(
+        t('common.error'),
+        `${t('expense.submitError')}${detail ? `\n\n${detail}` : ''}`,
+        'error'
+      );
     } finally {
       setSaving(false);
     }
@@ -424,7 +455,13 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-surface"
     >
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          /* Tab bar + indicateur d’accueil : éviter que « Envoyer » paraisse absent ou coupé. */
+          paddingBottom: Math.max(insets.bottom, 12) + 100,
+        }}
+      >
         <View className="px-5 pb-2" style={{ paddingTop: headerPaddingTop(insets.top) }}>
           <View
             className="rounded-[28px] px-5 py-5"
