@@ -104,7 +104,14 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** Web : menu actions (⋯) sur une ligne de note. */
+  const [webActionMenuId, setWebActionMenuId] = useState<string | null>(null);
   const swipeRefs = useRef<Map<string, Swipeable>>(new Map());
+
+  const webExpenseForActionMenu = useMemo(
+    () => (webActionMenuId ? expenses.find(e => e.id === webActionMenuId) : undefined),
+    [webActionMenuId, expenses]
+  );
 
   useEffect(() => {
     syncCalendarLocale(i18n.language);
@@ -121,6 +128,14 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
     useCallback(() => {
       void fetchExpenses(listFilters);
     }, [fetchExpenses, listFilters])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (IS_WEB) setWebActionMenuId(null);
+      };
+    }, [])
   );
 
   const openFilterModal = () => {
@@ -227,7 +242,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
               </Text>
             </View>
           </View>
-          <View className="w-[108px] border-l border-gray-200/80 bg-gray-50/95" />
+          <View className="w-[52px] border-l border-gray-200/80 bg-gray-50/95" />
         </View>
       </View>
     </View>
@@ -287,35 +302,17 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   </View>
                 </View>
               </TouchableOpacity>
-              <View className="flex-row items-center border-l border-gray-100 bg-gray-50/80 pl-1 pr-2">
+              <View className="w-[52px] border-l border-gray-100 bg-gray-50/80 items-center justify-center">
                 <Pressable
                   className="p-2 rounded-lg active:bg-gray-200/80"
-                  onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
+                  onPress={() =>
+                    setWebActionMenuId(prev => (prev === item.id ? null : item.id))
+                  }
                   accessibilityRole="button"
-                  accessibilityLabel={t('employee.swipeView')}
+                  accessibilityLabel={t('employee.webExpenseActionsMenu')}
                 >
-                  <Ionicons name="eye-outline" size={20} color={swipeStyles.iconView} />
+                  <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
                 </Pressable>
-                {pending ? (
-                  <>
-                    <Pressable
-                      className="p-2 rounded-lg active:bg-gray-200/80"
-                      onPress={() => navigation.navigate('NewExpense', { editExpense: item })}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('common.edit')}
-                    >
-                      <Ionicons name="create-outline" size={20} color={swipeStyles.iconEdit} />
-                    </Pressable>
-                    <Pressable
-                      className="p-2 rounded-lg active:bg-red-100/80"
-                      onPress={() => openDeleteConfirm(item.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('common.delete')}
-                    >
-                      <Ionicons name="trash-outline" size={20} color={swipeStyles.iconDelete} />
-                    </Pressable>
-                  </>
-                ) : null}
               </View>
             </View>
             {(item.is_fiscal_alert || item.is_flagged_duplicate) && (
@@ -485,7 +482,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   <ScreenHeroTitle className="mt-1 leading-snug">{t('employee.title')}</ScreenHeroTitle>
                   <Text className="text-gray-500 text-xs mt-0.5">{profile.full_name}</Text>
                 </View>
-                <View className="flex-row gap-2 shrink-0">
+                <View className="flex-row gap-2 shrink-0 items-start">
                   <View
                     className="bg-white/90 rounded-lg border border-gray-200/80 min-w-[88px]"
                     style={webHeroStatBoxStyle}
@@ -497,36 +494,38 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                       {expenses.length}
                     </Text>
                   </View>
-                  <View
-                    className="bg-white/90 rounded-lg border border-primary-200/60 min-w-[88px]"
-                    style={webHeroStatBoxStyle}
-                  >
-                    <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
-                      {t('expense.pending')}
-                    </Text>
-                    <Text className="text-base font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
+                  <View className="items-end">
+                    <TouchableOpacity
+                      onPress={openFilterModal}
+                      className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2"
+                      style={{
+                        borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                        backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
+                      }}
+                    >
+                      <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+                      <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                        {t('employee.filterNotes')}
+                      </Text>
+                      {filtersActive ? (
+                        <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                          <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                    <View
+                      className="bg-white/90 rounded-lg border border-primary-200/60 min-w-[88px] mt-2 w-full"
+                      style={webHeroStatBoxStyle}
+                    >
+                      <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
+                        {t('expense.pending')}
+                      </Text>
+                      <Text className="text-base font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
               <View className="flex-row flex-wrap gap-2 mt-2 justify-end items-center">
-                <TouchableOpacity
-                  onPress={openFilterModal}
-                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2"
-                  style={{
-                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
-                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
-                  }}
-                >
-                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
-                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                    {t('employee.filterNotes')}
-                  </Text>
-                  {filtersActive ? (
-                    <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
-                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('NewExpense')}
                   className="flex-row items-center gap-2 bg-primary-600 rounded-lg px-4 py-2 active:opacity-90"
@@ -631,6 +630,64 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         >
           <Text className="text-white text-3xl font-light leading-none">+</Text>
         </TouchableOpacity>
+      ) : null}
+
+      {IS_WEB ? (
+        <Modal
+          visible={!!webActionMenuId}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setWebActionMenuId(null)}
+        >
+          <View className="flex-1 justify-center items-center px-5">
+            <Pressable className="absolute inset-0 bg-black/35" onPress={() => setWebActionMenuId(null)} />
+            <View className="bg-white rounded-xl border border-gray-200 w-full max-w-[300px] z-10 overflow-hidden shadow-2xl">
+              {webExpenseForActionMenu ? (
+                <>
+                  <Pressable
+                    className={`flex-row items-center gap-3 px-4 py-3.5 active:bg-gray-50 ${
+                      webExpenseForActionMenu.status === 'pending' ? 'border-b border-gray-100' : ''
+                    }`}
+                    onPress={() => {
+                      const e = webExpenseForActionMenu;
+                      setWebActionMenuId(null);
+                      navigation.navigate('ExpenseDetail', { expense: e });
+                    }}
+                  >
+                    <Ionicons name="eye-outline" size={22} color={swipeStyles.iconView} />
+                    <Text className="text-base font-semibold text-gray-900">{t('employee.swipeView')}</Text>
+                  </Pressable>
+                  {webExpenseForActionMenu.status === 'pending' ? (
+                    <>
+                      <Pressable
+                        className="flex-row items-center gap-3 px-4 py-3.5 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          const e = webExpenseForActionMenu;
+                          setWebActionMenuId(null);
+                          navigation.navigate('NewExpense', { editExpense: e });
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={22} color={swipeStyles.iconEdit} />
+                        <Text className="text-base font-semibold text-gray-900">{t('common.edit')}</Text>
+                      </Pressable>
+                      <Pressable
+                        className="flex-row items-center gap-3 px-4 py-3.5 active:bg-red-50"
+                        onPress={() => {
+                          const id = webExpenseForActionMenu.id;
+                          setWebActionMenuId(null);
+                          openDeleteConfirm(id);
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={swipeStyles.iconDelete} />
+                        <Text className="text-base font-semibold text-red-600">{t('common.delete')}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
       ) : null}
 
       <Modal

@@ -91,6 +91,7 @@
     "sendExpense": "提交",
     "editExpense": "编辑费用",
     "swipeView": "查看",
+    "webExpenseActionsMenu": "单据操作",
     "scanReceipt": "扫描收据",
     "uploadReceipt": "上传图片",
     "takePhoto": "拍照",
