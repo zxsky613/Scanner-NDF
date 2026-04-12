@@ -1,8 +1,32 @@
 import { Platform, ViewStyle } from 'react-native';
 import { theme } from './theme';
 
-/** Expo web uniquement : le code mobile ne lit pas ces styles. */
+/**
+ * Expo web uniquement : le code mobile ne lit pas ces styles.
+ * (Dans le navigateur, `Platform.OS` vaut bien `'web'` — si vous voyez l’UI « mobile »
+ * en grand écran, vérifiez d’ouvrir la build **web** : `npx expo start --web` ou l’URL Vercel à jour.)
+ */
 export const IS_WEB = Platform.OS === 'web';
+
+/**
+ * Styles impératifs pour le héros d’écran sur le web : garantissent le padding même si
+ * certaines classes Tailwind ne sont pas appliquées par NativeWind sur le web.
+ */
+export const webHeroCardInlineStyle: ViewStyle = {
+  borderRadius: 14,
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+};
+
+export const webHeaderOuterInlineStyle: ViewStyle = {
+  paddingBottom: 4,
+};
+
+/** Encarts chiffres (nombre de notes, etc.) dans le héros web — plus bas qu’en mobile. */
+export const webHeroStatBoxStyle: ViewStyle = {
+  paddingVertical: 6,
+  paddingHorizontal: 10,
+};
 
 /** Largeur max de la colonne centrée (finance / listes). */
 export const WEB_MAX_CONTENT_WIDTH = 1440;
@@ -14,6 +38,11 @@ export const webAppShellOuter: ViewStyle = {
   backgroundColor: theme.surface,
   alignItems: 'center',
 };
+
+/**
+ * Carte « héros » (titres d’onglets) sur web : moins de padding que le mobile (px-6 py-6).
+ */
+export const WEB_HERO_CARD_CLASS = 'rounded-2xl px-4 py-3';
 
 /** Colonne centrée : largeur max + même fond que le reste de l’app. */
 export const webAppShellInner: ViewStyle = {

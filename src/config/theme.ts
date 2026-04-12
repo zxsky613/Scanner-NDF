@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /** Palette marque : bleu ardoise + marine — cohérent avec Tailwind `primary` / `ink`. */
 export const theme = {
   brandPrimary: '#609FB5',
@@ -28,7 +30,9 @@ export const heroHeaderShadow = {
 /**
  * Padding haut des héros titre (liste / tableau de bord).
  * `safeAreaTop` = `useSafeAreaInsets().top` pour respecter encoche & Dynamic Island.
+ * Sur web, marge réduite pour laisser plus de place au contenu scrollable.
  */
 export function headerPaddingTop(safeAreaTop: number): number {
-  return safeAreaTop + 14;
+  const extra = Platform.OS === 'web' ? 6 : 14;
+  return safeAreaTop + extra;
 }

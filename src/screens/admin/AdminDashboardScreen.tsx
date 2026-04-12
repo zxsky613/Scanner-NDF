@@ -37,7 +37,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../i18n';
 import { showAppAlert } from '../../utils/alert';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
-import { IS_WEB } from '../../config/webLayout';
+import {
+  IS_WEB,
+  WEB_HERO_CARD_CLASS,
+  webHeroCardInlineStyle,
+  webHeaderOuterInlineStyle,
+} from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -430,45 +435,62 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
 
   return (
     <View className="flex-1 bg-surface">
-      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View
+        className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
+        style={[
+          { paddingTop: headerPaddingTop(insets.top) },
+          IS_WEB ? webHeaderOuterInlineStyle : { paddingBottom: 8 },
+        ]}
+      >
         <View
-          className="rounded-[28px] px-6 py-6"
-          style={{
-            backgroundColor: theme.heroHeaderBg,
-            borderWidth: 1,
-            borderColor: theme.heroHeaderBorder,
-            ...heroHeaderShadow,
-          }}
+          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
+          style={[
+            {
+              backgroundColor: theme.heroHeaderBg,
+              borderWidth: 1,
+              borderColor: theme.heroHeaderBorder,
+              ...heroHeaderShadow,
+            },
+            IS_WEB ? webHeroCardInlineStyle : null,
+          ]}
         >
-          <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+          <AppNameText
+            className={IS_WEB ? 'text-ink-300 text-[10px] uppercase tracking-[0.16em]' : 'text-ink-300 text-xs uppercase tracking-[0.14em]'}
+          >
             {t('common.appName')}
           </AppNameText>
-          <ScreenHeroTitle className="mt-2">{t('admin.title')}</ScreenHeroTitle>
-          <Text className="text-gray-400 text-sm mt-2">
+          <ScreenHeroTitle className={IS_WEB ? 'mt-1' : 'mt-2'}>{t('admin.title')}</ScreenHeroTitle>
+          <Text className={IS_WEB ? 'text-gray-500 text-xs mt-0.5' : 'text-gray-400 text-sm mt-2'}>
             {profile.full_name} · {userRoleLabel(profile.role, t)}
           </Text>
-          <View className={`flex-row gap-2.5 mt-5 ${IS_WEB ? 'flex-wrap' : ''}`}>
-            <View className={`bg-surface rounded-2xl px-3 py-3 border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
+          <View className={`flex-row gap-2.5 ${IS_WEB ? 'mt-3 flex-wrap' : 'mt-5 flex-wrap'}`}>
+            <View
+              className={`bg-surface rounded-2xl border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1 px-2.5 py-2' : 'flex-1 px-3 py-3'}`}
+            >
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalExpenses')}</Text>
               <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
                 {totals.count}
               </Text>
             </View>
             {IS_WEB ? (
-              <View className="min-w-[140px] flex-1 bg-surface rounded-2xl px-3 py-3 border border-gray-100">
+              <View className="min-w-[140px] flex-1 bg-surface rounded-2xl px-2.5 py-2 border border-gray-100">
                 <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalHT')}</Text>
                 <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
                   {formatCurrency(totals.ht)}
                 </Text>
               </View>
             ) : null}
-            <View className={`bg-surface rounded-2xl px-3 py-3 border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
+            <View
+              className={`bg-surface rounded-2xl border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1 px-2.5 py-2' : 'flex-1 px-3 py-3'}`}
+            >
               <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalTTC')}</Text>
               <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
                 {formatCurrency(totals.ttc)}
               </Text>
             </View>
-            <View className={`bg-amber-50 rounded-2xl px-3 py-3 border border-amber-100 ${IS_WEB ? 'min-w-[140px] flex-1' : 'flex-1'}`}>
+            <View
+              className={`bg-amber-50 rounded-2xl border border-amber-100 ${IS_WEB ? 'min-w-[140px] flex-1 px-2.5 py-2' : 'flex-1 px-3 py-3'}`}
+            >
               <Text className="text-amber-700 text-[11px] font-semibold">{t('admin.pendingCount')}</Text>
               <Text className="text-amber-800 font-bold text-lg mt-0.5">{totals.pending}</Text>
             </View>
@@ -477,7 +499,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       </View>
 
       <View
-        className={`flex-row gap-3 mt-3 ${pageX} ${IS_WEB ? 'justify-center flex-wrap' : ''}`}
+        className={`flex-row gap-3 ${IS_WEB ? 'mt-2' : 'mt-3'} ${pageX} ${IS_WEB ? 'justify-center flex-wrap' : ''}`}
       >
         <TouchableOpacity
           className={`bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm ${

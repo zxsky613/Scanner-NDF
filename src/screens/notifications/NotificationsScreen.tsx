@@ -22,7 +22,12 @@ import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IS_WEB } from '../../config/webLayout';
+import {
+  IS_WEB,
+  WEB_HERO_CARD_CLASS,
+  webHeroCardInlineStyle,
+  webHeaderOuterInlineStyle,
+} from '../../config/webLayout';
 
 type NotificationsStackParamList = {
   NotificationsHome: undefined;
@@ -131,23 +136,38 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const header = (
-    <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
+    <View
+      className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
+      style={[
+        { paddingTop: headerPaddingTop(insets.top) },
+        IS_WEB ? webHeaderOuterInlineStyle : { paddingBottom: 8 },
+      ]}
+    >
       <View
-        className="rounded-[28px] px-6 py-6"
-        style={{
-          backgroundColor: theme.heroHeaderBg,
-          borderWidth: 1,
-          borderColor: theme.heroHeaderBorder,
-          ...heroHeaderShadow,
-        }}
+        className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
+        style={[
+          {
+            backgroundColor: theme.heroHeaderBg,
+            borderWidth: 1,
+            borderColor: theme.heroHeaderBorder,
+            ...heroHeaderShadow,
+          },
+          IS_WEB ? webHeroCardInlineStyle : null,
+        ]}
       >
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 min-w-0">
-            <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+            <AppNameText
+              className={
+                IS_WEB
+                  ? 'text-ink-300 text-[10px] uppercase tracking-[0.16em]'
+                  : 'text-ink-300 text-xs uppercase tracking-[0.14em]'
+              }
+            >
               {t('common.appName')}
             </AppNameText>
-            <ScreenHeroTitle className="mt-2">{t('notifications.title')}</ScreenHeroTitle>
-            <Text className="text-gray-400 mt-2 text-base">
+            <ScreenHeroTitle className={IS_WEB ? 'mt-1' : 'mt-2'}>{t('notifications.title')}</ScreenHeroTitle>
+            <Text className={IS_WEB ? 'text-gray-500 mt-1 text-sm leading-5' : 'text-gray-400 mt-2 text-base'}>
               {unreadCount > 0
                 ? viewerIsReviewer
                   ? t('notifications.reviewerAttentionLine', { count: unreadCount })
@@ -158,7 +178,11 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
           {unreadCount > 0 ? (
             <TouchableOpacity
               onPress={() => void markAllRead()}
-              className="bg-primary-600 rounded-full px-4 py-2.5 active:opacity-90"
+              className={
+                IS_WEB
+                  ? 'bg-primary-600 rounded-lg px-3 py-2 active:opacity-90'
+                  : 'bg-primary-600 rounded-full px-4 py-2.5 active:opacity-90'
+              }
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
             >
               <Text className="text-white text-[11px] font-bold text-center">

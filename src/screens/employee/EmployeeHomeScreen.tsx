@@ -29,7 +29,13 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import { showAppAlert } from '../../utils/alert';
-import { IS_WEB } from '../../config/webLayout';
+import {
+  IS_WEB,
+  WEB_HERO_CARD_CLASS,
+  webHeroCardInlineStyle,
+  webHeroStatBoxStyle,
+  webHeaderOuterInlineStyle,
+} from '../../config/webLayout';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -198,6 +204,35 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   const pendingCount = expenses.filter(e => e.status === 'pending').length;
 
+  const webListTableHeader = IS_WEB ? (
+    <View className={`${cardX} mb-1`}>
+      <View className="rounded-xl border border-gray-200/90 bg-gray-50/95 overflow-hidden">
+        <View className="flex-row items-stretch">
+          <View className="flex-1 flex-row items-center px-4 py-2.5 gap-3 min-w-0">
+            <View className="w-10 shrink-0" />
+            <View className="flex-1 min-w-0">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                {t('expense.category')} · {t('expense.supplier')}
+              </Text>
+              <Text className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mt-0.5">
+                {t('expense.receiptDate')} · {t('expense.requestCreatedAt')}
+              </Text>
+            </View>
+            <View className="items-end shrink-0 pl-2">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                {t('expense.amountTTC')}
+              </Text>
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-1">
+                {t('expense.status')}
+              </Text>
+            </View>
+          </View>
+          <View className="w-[108px] border-l border-gray-200/80 bg-gray-50/95" />
+        </View>
+      </View>
+    </View>
+  ) : null;
+
   const closeSwipe = (id: string) => {
     swipeRefs.current.get(id)?.close();
   };
@@ -209,6 +244,102 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   const renderExpense = ({ item }: { item: Expense }) => {
     const pending = item.status === 'pending';
+
+    /** Ligne type « tableau » : dense, actions visibles (pas de swipe sur web). */
+    if (IS_WEB) {
+      return (
+        <View className={`mb-2 ${cardX}`}>
+          <View className="bg-white rounded-xl border border-gray-200/90 shadow-sm overflow-hidden">
+            <View className="flex-row items-stretch">
+              <TouchableOpacity
+                className="flex-1 flex-row items-center px-4 py-3.5 gap-3 min-w-0 active:bg-gray-50/90"
+                onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
+                accessibilityRole="button"
+              >
+                <View className="w-10 h-10 rounded-lg bg-surface items-center justify-center border border-gray-100 shrink-0">
+                  <Text className="text-lg leading-none">{categoryIcons[item.category] ?? '📄'}</Text>
+                </View>
+                <View className="flex-1 min-w-0">
+                  <Text className="font-semibold text-gray-900 text-sm" numberOfLines={1}>
+                    {t(`expense.${item.category}`)}
+                  </Text>
+                  <Text className="text-gray-600 text-xs mt-0.5" numberOfLines={1}>
+                    {item.supplier}
+                    {item.city?.trim() ? ` · ${item.city.trim()}` : ''}
+                  </Text>
+                  <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
+                    {formatDate(item.receipt_date)}
+                    {item.created_at ? ` · ${formatDate(item.created_at)}` : ''}
+                  </Text>
+                </View>
+                <View className="items-end shrink-0 pl-2">
+                  <Text className="font-bold text-gray-900 text-sm tabular-nums">
+                    {formatCurrency(item.amount_ttc)}
+                  </Text>
+                  <View
+                    className={`px-2 py-0.5 rounded-md mt-1 ${statusColors[item.status]?.split(' ')[0]}`}
+                  >
+                    <Text
+                      className={`text-[10px] font-bold uppercase tracking-wide ${statusColors[item.status]?.split(' ')[1]}`}
+                    >
+                      {t(`expense.${item.status}`)}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <View className="flex-row items-center border-l border-gray-100 bg-gray-50/80 pl-1 pr-2">
+                <Pressable
+                  className="p-2 rounded-lg active:bg-gray-200/80"
+                  onPress={() => navigation.navigate('ExpenseDetail', { expense: item })}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('employee.swipeView')}
+                >
+                  <Ionicons name="eye-outline" size={20} color={swipeStyles.iconView} />
+                </Pressable>
+                {pending ? (
+                  <>
+                    <Pressable
+                      className="p-2 rounded-lg active:bg-gray-200/80"
+                      onPress={() => navigation.navigate('NewExpense', { editExpense: item })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.edit')}
+                    >
+                      <Ionicons name="create-outline" size={20} color={swipeStyles.iconEdit} />
+                    </Pressable>
+                    <Pressable
+                      className="p-2 rounded-lg active:bg-red-100/80"
+                      onPress={() => openDeleteConfirm(item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.delete')}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={swipeStyles.iconDelete} />
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
+            </View>
+            {(item.is_fiscal_alert || item.is_flagged_duplicate) && (
+              <View className="flex-row flex-wrap gap-2 px-4 pb-3 pt-0 border-t border-gray-100 bg-surface/50">
+                {item.is_fiscal_alert ? (
+                  <View className="bg-red-50 rounded-md px-2 py-1">
+                    <Text className="text-red-700 text-[11px] font-medium">
+                      ⚠️ {t('alerts.fiscalTitle')}
+                    </Text>
+                  </View>
+                ) : null}
+                {item.is_flagged_duplicate ? (
+                  <View className="bg-amber-50 rounded-md px-2 py-1">
+                    <Text className="text-amber-800 text-[11px] font-medium">
+                      🔄 {t('alerts.duplicateTitle')}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
 
     const rightActions = (
       <View
@@ -325,53 +456,134 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   return (
     <View className="flex-1 bg-surface">
-      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View
+        className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
+        style={[
+          { paddingTop: headerPaddingTop(insets.top) },
+          IS_WEB ? webHeaderOuterInlineStyle : { paddingBottom: 8 },
+        ]}
+      >
         <View
-          className="rounded-[28px] px-6 py-6"
-          style={{
-            backgroundColor: theme.heroHeaderBg,
-            borderWidth: 1,
-            borderColor: theme.heroHeaderBorder,
-            ...heroHeaderShadow,
-          }}
+          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
+          style={[
+            {
+              backgroundColor: theme.heroHeaderBg,
+              borderWidth: 1,
+              borderColor: theme.heroHeaderBorder,
+              ...heroHeaderShadow,
+            },
+            IS_WEB ? webHeroCardInlineStyle : null,
+          ]}
         >
-          <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
-            {t('common.appName')}
-          </AppNameText>
-          <ScreenHeroTitle className="mt-2">{t('employee.title')}</ScreenHeroTitle>
-          <Text className="text-gray-400 text-base mt-2">{profile.full_name}</Text>
-          <View className="flex-row gap-3 mt-5">
-            <View className="flex-1 bg-surface rounded-2xl px-4 py-3.5 border border-gray-100">
-              <Text className="text-gray-400 text-xs font-medium">{t('admin.totalExpenses')}</Text>
-              <Text className="text-2xl font-bold mt-0.5" style={{ color: theme.brandInk }}>
-                {expenses.length}
-              </Text>
-            </View>
-            <View className="flex-1 bg-primary-50 rounded-2xl px-4 py-3.5 border border-primary-100">
-              <Text className="text-primary-600 text-xs font-semibold">{t('expense.pending')}</Text>
-              <Text className="text-primary-600 text-2xl font-bold mt-0.5">{pendingCount}</Text>
-            </View>
-          </View>
-          <View className="flex-row items-center justify-between mt-4">
-            <TouchableOpacity
-              onPress={openFilterModal}
-              className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
-              style={{
-                borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
-                backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
-              }}
-            >
-              <Text className="text-base">🔍</Text>
-              <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                {t('employee.filterNotes')}
-              </Text>
-              {filtersActive ? (
-                <View className="bg-primary-600 rounded-full px-2 py-0.5">
-                  <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+          {IS_WEB ? (
+            <>
+              <View className="flex-row flex-wrap gap-3 items-start justify-between">
+                <View className="flex-1 min-w-[220px]">
+                  <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
+                    {t('common.appName')}
+                  </AppNameText>
+                  <ScreenHeroTitle className="mt-1 leading-snug">{t('employee.title')}</ScreenHeroTitle>
+                  <Text className="text-gray-500 text-xs mt-0.5">{profile.full_name}</Text>
                 </View>
-              ) : null}
-            </TouchableOpacity>
-          </View>
+                <View className="flex-row gap-2 shrink-0">
+                  <View
+                    className="bg-white/90 rounded-lg border border-gray-200/80 min-w-[88px]"
+                    style={webHeroStatBoxStyle}
+                  >
+                    <Text className="text-gray-500 text-[9px] font-semibold uppercase tracking-wide">
+                      {t('admin.totalExpenses')}
+                    </Text>
+                    <Text className="text-base font-bold mt-0.5" style={{ color: theme.brandInk }}>
+                      {expenses.length}
+                    </Text>
+                  </View>
+                  <View
+                    className="bg-white/90 rounded-lg border border-primary-200/60 min-w-[88px]"
+                    style={webHeroStatBoxStyle}
+                  >
+                    <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
+                      {t('expense.pending')}
+                    </Text>
+                    <Text className="text-base font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
+                  </View>
+                </View>
+              </View>
+              <View className="flex-row flex-wrap gap-2 mt-2 justify-end items-center">
+                <TouchableOpacity
+                  onPress={openFilterModal}
+                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2"
+                  style={{
+                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
+                  }}
+                >
+                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                    {t('employee.filterNotes')}
+                  </Text>
+                  {filtersActive ? (
+                    <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('NewExpense')}
+                  className="flex-row items-center gap-2 bg-primary-600 rounded-lg px-4 py-2 active:opacity-90"
+                  style={{
+                    shadowColor: theme.brandPrimary,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 8,
+                    elevation: 4,
+                  }}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                  <Text className="text-white text-sm font-bold">{t('employee.newExpense')}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+                {t('common.appName')}
+              </AppNameText>
+              <ScreenHeroTitle className="mt-2">{t('employee.title')}</ScreenHeroTitle>
+              <Text className="text-gray-400 text-base mt-2">{profile.full_name}</Text>
+              <View className="flex-row gap-3 mt-5">
+                <View className="flex-1 bg-surface rounded-2xl px-4 py-3.5 border border-gray-100">
+                  <Text className="text-gray-400 text-xs font-medium">{t('admin.totalExpenses')}</Text>
+                  <Text className="text-2xl font-bold mt-0.5" style={{ color: theme.brandInk }}>
+                    {expenses.length}
+                  </Text>
+                </View>
+                <View className="flex-1 bg-primary-50 rounded-2xl px-4 py-3.5 border border-primary-100">
+                  <Text className="text-primary-600 text-xs font-semibold">{t('expense.pending')}</Text>
+                  <Text className="text-primary-600 text-2xl font-bold mt-0.5">{pendingCount}</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center justify-between mt-4">
+                <TouchableOpacity
+                  onPress={openFilterModal}
+                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
+                  style={{
+                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
+                  }}
+                >
+                  <Text className="text-base">🔍</Text>
+                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                    {t('employee.filterNotes')}
+                  </Text>
+                  {filtersActive ? (
+                    <View className="bg-primary-600 rounded-full px-2 py-0.5">
+                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </View>
 
@@ -379,7 +591,11 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         data={expenses}
         keyExtractor={item => item.id}
         renderItem={renderExpense}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 110 }}
+        ListHeaderComponent={webListTableHeader}
+        contentContainerStyle={{
+          paddingTop: IS_WEB ? 8 : 12,
+          paddingBottom: IS_WEB ? 32 : 110,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -399,26 +615,27 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         }
       />
 
-      <TouchableOpacity
-        className="absolute bg-primary-600 w-16 h-16 rounded-full items-center justify-center"
-        onPress={() => navigation.navigate('NewExpense')}
-        style={{
-          /* Web : au-dessus de la barre d’onglets basse (~72px + marge). */
-          bottom: IS_WEB ? 96 : 40,
-          right: IS_WEB ? 32 : 24,
-          shadowColor: theme.brandPrimary,
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.35,
-          shadowRadius: 16,
-          elevation: 12,
-        }}
-      >
-        <Text className="text-white text-3xl font-light leading-none">+</Text>
-      </TouchableOpacity>
+      {!IS_WEB ? (
+        <TouchableOpacity
+          className="absolute bg-primary-600 w-16 h-16 rounded-full items-center justify-center"
+          onPress={() => navigation.navigate('NewExpense')}
+          style={{
+            bottom: 40,
+            right: 24,
+            shadowColor: theme.brandPrimary,
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.35,
+            shadowRadius: 16,
+            elevation: 12,
+          }}
+        >
+          <Text className="text-white text-3xl font-light leading-none">+</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <Modal
         visible={filterModalOpen}
-        animationType="slide"
+        animationType={IS_WEB ? 'fade' : 'slide'}
         transparent
         onRequestClose={closeFilterModal}
       >
@@ -426,9 +643,17 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           className="flex-1"
         >
-          <View className="flex-1 justify-end">
+          <View
+            className={IS_WEB ? 'flex-1 justify-center items-center px-4 py-8' : 'flex-1 justify-end'}
+          >
             <Pressable className="absolute inset-0 bg-black/40" onPress={closeFilterModal} />
-            <View className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[88%]">
+            <View
+              className={
+                IS_WEB
+                  ? 'bg-white rounded-2xl border border-gray-200/90 w-full max-w-lg max-h-[85vh] z-10 shadow-2xl overflow-hidden'
+                  : 'bg-white rounded-t-[28px] border-t border-gray-100 max-h-[88%]'
+              }
+            >
               {filterModalView === 'main' ? (
                 <ScrollView
                   keyboardShouldPersistTaps="handled"

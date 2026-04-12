@@ -9,7 +9,12 @@ import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { userRoleLabel } from '../../utils/userRoleLabel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IS_WEB } from '../../config/webLayout';
+import {
+  IS_WEB,
+  WEB_HERO_CARD_CLASS,
+  webHeroCardInlineStyle,
+  webHeaderOuterInlineStyle,
+} from '../../config/webLayout';
 
 interface Props {
   profile: Profile;
@@ -44,24 +49,39 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
 
   return (
     <ScrollView className="flex-1 bg-surface">
-      <View className={`${pageX} pb-2`} style={{ paddingTop: headerPaddingTop(insets.top) }}>
+      <View
+        className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
+        style={[
+          { paddingTop: headerPaddingTop(insets.top) },
+          IS_WEB ? webHeaderOuterInlineStyle : { paddingBottom: 8 },
+        ]}
+      >
         <View
-          className="rounded-[28px] px-6 py-6"
-          style={{
-            backgroundColor: theme.heroHeaderBg,
-            borderWidth: 1,
-            borderColor: theme.heroHeaderBorder,
-            ...heroHeaderShadow,
-          }}
+          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
+          style={[
+            {
+              backgroundColor: theme.heroHeaderBg,
+              borderWidth: 1,
+              borderColor: theme.heroHeaderBorder,
+              ...heroHeaderShadow,
+            },
+            IS_WEB ? webHeroCardInlineStyle : null,
+          ]}
         >
-          <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+          <AppNameText
+            className={
+              IS_WEB
+                ? 'text-ink-300 text-[10px] uppercase tracking-[0.16em]'
+                : 'text-ink-300 text-xs uppercase tracking-[0.14em]'
+            }
+          >
             {t('common.appName')}
           </AppNameText>
-          <ScreenHeroTitle className="mt-2">{t('navTabs.settings')}</ScreenHeroTitle>
+          <ScreenHeroTitle className={IS_WEB ? 'mt-1' : 'mt-2'}>{t('navTabs.settings')}</ScreenHeroTitle>
         </View>
       </View>
 
-      <View className={`${pageX} mt-4`}>
+      <View className={`${pageX} ${IS_WEB ? 'mt-3' : 'mt-4'}`}>
         <View
           className="bg-white rounded-[28px] px-6 py-8 items-center border border-gray-100/80 shadow-sm mb-5"
           style={{

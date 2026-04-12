@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, type TextProps } from 'react-native';
+import { Platform, Text, type TextProps } from 'react-native';
 import { theme } from '../config/theme';
 
 type Props = TextProps & {
@@ -17,15 +17,26 @@ export const ScreenHeroTitle: React.FC<Props> = ({
   variant = 'hero',
   style,
   ...rest
-}) => (
-  <Text
-    className={`${variant === 'stack' ? 'text-2xl' : 'text-3xl'} font-bold leading-tight ${className}`}
-    style={[
-      { color: theme.brandInk, letterSpacing: variant === 'stack' ? -0.4 : -0.6 },
-      style,
-    ]}
-    {...rest}
-  >
-    {children}
-  </Text>
-);
+}) => {
+  const isWeb = Platform.OS === 'web';
+  const sizeClass =
+    variant === 'stack'
+      ? isWeb
+        ? 'text-xl'
+        : 'text-2xl'
+      : isWeb
+        ? 'text-2xl'
+        : 'text-3xl';
+  return (
+    <Text
+      className={`${sizeClass} font-bold leading-tight ${className}`}
+      style={[
+        { color: theme.brandInk, letterSpacing: variant === 'stack' ? -0.4 : -0.6 },
+        style,
+      ]}
+      {...rest}
+    >
+      {children}
+    </Text>
+  );
+};
