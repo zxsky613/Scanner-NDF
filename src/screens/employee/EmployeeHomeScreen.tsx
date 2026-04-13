@@ -823,27 +823,27 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   <Text className="text-primary-600 text-2xl font-bold mt-0.5">{pendingCount}</Text>
                 </View>
               </View>
-              <View className="flex-row items-center justify-between mt-4">
-                <TouchableOpacity
-                  onPress={openFilterModal}
-                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
-                  style={{
-                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
-                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
-                  }}
-                >
-                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
-                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                    {t('employee.filterNotes')}
-                  </Text>
-                  {filtersActive ? (
-                    <View className="bg-primary-600 rounded-full px-2 py-0.5">
-                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              </View>
             </View>
+          </View>
+          <View className={`flex-row gap-2 mt-3 ${pageX} flex-wrap items-center`}>
+            <TouchableOpacity
+              onPress={openFilterModal}
+              className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
+              style={{
+                borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
+              }}
+            >
+              <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+              <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                {t('employee.filterNotes')}
+              </Text>
+              {filtersActive ? (
+                <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                  <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
           </View>
           <FlatList
             data={expenses}
