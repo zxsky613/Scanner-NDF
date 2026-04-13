@@ -15,12 +15,8 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
   /** Uniquement pour le geste « tirer pour actualiser », pas pour le rechargement au focus. */
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchExpenses = useCallback(
-    async (filters?: ExpenseFilters, opts?: { pull?: boolean }): Promise<FetchExpensesResult> => {
-    const pull = opts?.pull === true;
-    if (pull) setRefreshing(true);
-    try {
-      /* Pas d’embed expenses→profiles (deux FK → PGRST201). Deux requêtes + fusion. */
+  const fetchExpensesSnapshot = useCallback(
+    async (filters?: ExpenseFilters): Promise<Expense[]> => {
       let query = supabase
         .from('expenses')
         .select('*')
@@ -66,7 +62,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
         }
       }
 
-      const merged: Expense[] = list
+      return list
         .map(row => {
           const r = row as Expense & { city?: string | null };
           return {
@@ -78,17 +74,27 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
           };
         })
         .sort(sortExpensesByCreatedAtDesc);
-      setExpenses(merged);
-      return { ok: true, count: merged.length };
-    } catch (err) {
-      console.error('Fetch expenses error:', err);
-      return { ok: false };
-    } finally {
-      if (pull) setRefreshing(false);
-    }
-  },
-  [userId, isAdmin]
-);
+    },
+    [userId, isAdmin]
+  );
+
+  const fetchExpenses = useCallback(
+    async (filters?: ExpenseFilters, opts?: { pull?: boolean }): Promise<FetchExpensesResult> => {
+      const pull = opts?.pull === true;
+      if (pull) setRefreshing(true);
+      try {
+        const merged = await fetchExpensesSnapshot(filters);
+        setExpenses(merged);
+        return { ok: true, count: merged.length };
+      } catch (err) {
+        console.error('Fetch expenses error:', err);
+        return { ok: false };
+      } finally {
+        if (pull) setRefreshing(false);
+      }
+    },
+    [fetchExpensesSnapshot]
+  );
 
   const createExpense = async (expense: {
     receipt_date: string;
@@ -214,6 +220,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     expenses,
     refreshing,
     fetchExpenses,
+    fetchExpensesSnapshot,
     createExpense,
     checkDuplicate,
     updateExpense,

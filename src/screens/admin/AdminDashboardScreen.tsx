@@ -73,10 +73,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const { t, i18n } = useTranslation();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
-  const { expenses, refreshing, fetchExpenses, updateExpenseStatus } = useExpenses(
-    profile.id,
-    true
-  );
+  const { expenses, refreshing, fetchExpenses, fetchExpensesSnapshot, updateExpenseStatus } =
+    useExpenses(profile.id, true);
 
   const [employees, setEmployees] = useState<Profile[]>([]);
   const [filters, setFilters] = useState<ExpenseFilters>({});
@@ -95,10 +93,32 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const [rejectModal, setRejectModal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportSheetView, setExportSheetView] = useState<'main' | 'dateRange'>('main');
+  const [exportEmployeeId, setExportEmployeeId] = useState<string | undefined>();
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
+  const [exportPick, setExportPick] = useState<{ start: string | null; end: string | null }>({
+    start: null,
+    end: null,
+  });
+  const [exportEmployeePickerOpen, setExportEmployeePickerOpen] = useState(false);
   /** Sections repliables : les plus récentes en premier (created_at). */
   const [pendingSectionExpanded, setPendingSectionExpanded] = useState(true);
   const [processedSectionExpanded, setProcessedSectionExpanded] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
+
+  const adminFiltersActive = useMemo(() => {
+    const f = filters;
+    return !!(
+      f.status ||
+      f.category ||
+      f.employee_id ||
+      f.date_from ||
+      f.date_to ||
+      (f.supplier_search && f.supplier_search.trim())
+    );
+  }, [filters]);
 
   const loadEmployeesWithExpenses = useCallback(async () => {
     const { data: expRows, error: e1 } = await supabase.from('expenses').select('user_id');
@@ -134,6 +154,11 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const rangeMarked = useMemo(
     () => buildPeriodMarkings(datePick.start, datePick.end, theme.brandPrimary),
     [datePick.start, datePick.end]
+  );
+
+  const rangeMarkedExport = useMemo(
+    () => buildPeriodMarkings(exportPick.start, exportPick.end, theme.brandPrimary),
+    [exportPick.start, exportPick.end]
   );
 
   const openDateRangeInSheet = useCallback(() => {
@@ -182,6 +207,104 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     (dateTo && dateTo !== dateFrom
       ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
       : formatDate(dateFrom));
+
+  const exportDateRangeSummary =
+    exportDateFrom &&
+    (exportDateTo && exportDateTo !== exportDateFrom
+      ? `${formatDate(exportDateFrom)} – ${formatDate(exportDateTo)}`
+      : formatDate(exportDateFrom));
+
+  const buildExportFilters = useCallback((): ExpenseFilters => {
+    const ef: ExpenseFilters = { ...filters };
+    if (exportDateFrom) ef.date_from = exportDateFrom;
+    else delete ef.date_from;
+    if (exportDateTo) ef.date_to = exportDateTo;
+    else delete ef.date_to;
+    if (exportEmployeeId) ef.employee_id = exportEmployeeId;
+    else delete ef.employee_id;
+    return ef;
+  }, [filters, exportDateFrom, exportDateTo, exportEmployeeId]);
+
+  const openExportModal = useCallback(() => {
+    setExportEmployeeId(filters.employee_id);
+    setExportDateFrom(filters.date_from ?? '');
+    setExportDateTo(filters.date_to ?? '');
+    setExportPick({
+      start: filters.date_from ?? null,
+      end:
+        filters.date_to && filters.date_to !== filters.date_from ? filters.date_to : null,
+    });
+    setExportSheetView('main');
+    setExportEmployeePickerOpen(false);
+    setShowExportModal(true);
+    void loadEmployeesWithExpenses();
+  }, [filters, loadEmployeesWithExpenses]);
+
+  const closeExportModal = useCallback(() => {
+    setShowExportModal(false);
+    setExportSheetView('main');
+    setExportEmployeePickerOpen(false);
+  }, []);
+
+  const openExportDateRangeInSheet = useCallback(() => {
+    setExportEmployeePickerOpen(false);
+    if (exportDateFrom) {
+      setExportPick({
+        start: exportDateFrom,
+        end: exportDateTo && exportDateTo !== exportDateFrom ? exportDateTo : null,
+      });
+    } else {
+      setExportPick({ start: null, end: null });
+    }
+    setExportSheetView('dateRange');
+  }, [exportDateFrom, exportDateTo]);
+
+  const onExportRangeDayPress = useCallback((day: DateData) => {
+    const d = day.dateString;
+    setExportPick(prev => {
+      if (!prev.start || (prev.start && prev.end)) {
+        return { start: d, end: null };
+      }
+      if (d < prev.start) {
+        return { start: d, end: prev.start };
+      }
+      return { start: prev.start, end: d };
+    });
+  }, []);
+
+  const confirmExportDateRange = useCallback(() => {
+    const { start, end } = exportPick;
+    if (!start) {
+      setExportDateFrom('');
+      setExportDateTo('');
+    } else if (!end) {
+      setExportDateFrom(start);
+      setExportDateTo(start);
+    } else {
+      setExportDateFrom(start);
+      setExportDateTo(end);
+    }
+    setExportSheetView('main');
+  }, [exportPick]);
+
+  const runExportFromModal = useCallback(async () => {
+    const ef = buildExportFilters();
+    setExporting(true);
+    try {
+      const rows = await fetchExpensesSnapshot(ef);
+      if (rows.length === 0) {
+        showAppAlert(t('common.error'), t('common.noData'), 'error');
+        return;
+      }
+      await exportToExcel(rows);
+      showAppAlert(t('common.success'), t('admin.exportSuccess'), 'success');
+      closeExportModal();
+    } catch {
+      showAppAlert(t('common.error'), t('admin.exportError'), 'error');
+    } finally {
+      setExporting(false);
+    }
+  }, [buildExportFilters, fetchExpensesSnapshot, t, closeExportModal]);
 
   useFocusEffect(
     useCallback(() => {
@@ -236,21 +359,6 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     if (error) showAppAlert(t('common.error'), error.message, 'error');
     setRejectModal(null);
     setRejectionReason('');
-  };
-
-  const handleExport = async () => {
-    if (expenses.length === 0) {
-      showAppAlert(t('common.error'), t('common.noData'), 'error');
-      return;
-    }
-    setExporting(true);
-    try {
-      await exportToExcel(expenses);
-    } catch {
-      showAppAlert(t('common.error'), t('admin.exportError'), 'error');
-    } finally {
-      setExporting(false);
-    }
   };
 
   const totals = {
@@ -456,15 +564,71 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
             IS_WEB ? webHeroCardInlineStyle : null,
           ]}
         >
-          <AppNameText
-            className={IS_WEB ? 'text-ink-300 text-[10px] uppercase tracking-[0.16em]' : 'text-ink-300 text-xs uppercase tracking-[0.14em]'}
-          >
-            {t('common.appName')}
-          </AppNameText>
-          <ScreenHeroTitle className={IS_WEB ? 'mt-1' : 'mt-2'}>{t('admin.title')}</ScreenHeroTitle>
-          <Text className={IS_WEB ? 'text-gray-500 text-xs mt-0.5' : 'text-gray-400 text-sm mt-2'}>
-            {profile.full_name} · {userRoleLabel(profile.role, t)}
-          </Text>
+          {IS_WEB ? (
+            <View>
+              <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
+                {t('common.appName')}
+              </AppNameText>
+              <View className="flex-row items-center justify-between gap-3 mt-1">
+                <View className="flex-1 min-w-0 pr-2">
+                  <ScreenHeroTitle>{t('admin.title')}</ScreenHeroTitle>
+                </View>
+                <View className="flex-row gap-2 shrink-0 items-center flex-wrap justify-end">
+                  <TouchableOpacity
+                    className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
+                    style={{
+                      borderColor: adminFiltersActive ? theme.heroHeaderBorder : undefined,
+                      backgroundColor: adminFiltersActive ? theme.heroHeaderBg : undefined,
+                    }}
+                    onPress={() => {
+                      setFilterSheetView('main');
+                      void loadEmployeesWithExpenses();
+                      setShowFilterModal(true);
+                    }}
+                  >
+                    <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+                    <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                      {t('common.filter')}
+                    </Text>
+                    {adminFiltersActive ? (
+                      <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                        <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
+                    onPress={openExportModal}
+                    disabled={exporting}
+                  >
+                    {exporting ? (
+                      <ActivityIndicator color={theme.brandPrimary} size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="download-outline" size={18} color={theme.brandInk} />
+                        <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                          {t('admin.exportExcel')}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text className="text-gray-500 text-xs mt-0.5">
+                {profile.full_name} · {userRoleLabel(profile.role, t)}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
+                {t('common.appName')}
+              </AppNameText>
+              <ScreenHeroTitle className="mt-2">{t('admin.title')}</ScreenHeroTitle>
+              <Text className="text-gray-400 text-sm mt-2">
+                {profile.full_name} · {userRoleLabel(profile.role, t)}
+              </Text>
+            </>
+          )}
           <View className={`flex-row gap-2.5 ${IS_WEB ? 'mt-3 flex-wrap' : 'mt-5 flex-wrap'}`}>
             <View
               className={`bg-surface rounded-2xl border border-gray-100 ${IS_WEB ? 'min-w-[140px] flex-1 px-2.5 py-2' : 'flex-1 px-3 py-3'}`}
@@ -500,39 +664,48 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
         </View>
       </View>
 
-      <View
-        className={`flex-row gap-3 ${IS_WEB ? 'mt-2' : 'mt-3'} ${pageX} ${IS_WEB ? 'justify-center flex-wrap' : ''}`}
-      >
-        <TouchableOpacity
-          className={`bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm ${
-            IS_WEB ? 'px-10 min-w-[200px]' : 'flex-1'
-          }`}
-          onPress={() => {
-            setFilterSheetView('main');
-            void loadEmployeesWithExpenses();
-            setShowFilterModal(true);
-          }}
-        >
-          <Text className="text-base">🔍</Text>
-          <Text className="text-gray-800 font-bold text-sm">{t('common.filter')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className={`bg-white border border-gray-200 rounded-full py-3.5 items-center flex-row justify-center gap-2 shadow-sm ${
-            IS_WEB ? 'px-10 min-w-[200px]' : 'flex-1'
-          }`}
-          onPress={handleExport}
-          disabled={exporting}
-        >
-          {exporting ? (
-            <ActivityIndicator color={theme.brandPrimary} size="small" />
-          ) : (
-            <>
-              <Text className="text-base">📊</Text>
-              <Text className="text-gray-800 font-bold text-sm">{t('admin.exportExcel')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+      {!IS_WEB ? (
+        <View className={`flex-row gap-2 mt-3 ${pageX} flex-wrap items-center`}>
+          <TouchableOpacity
+            className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
+            style={{
+              borderColor: adminFiltersActive ? theme.heroHeaderBorder : undefined,
+              backgroundColor: adminFiltersActive ? theme.heroHeaderBg : undefined,
+            }}
+            onPress={() => {
+              setFilterSheetView('main');
+              void loadEmployeesWithExpenses();
+              setShowFilterModal(true);
+            }}
+          >
+            <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+            <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+              {t('common.filter')}
+            </Text>
+            {adminFiltersActive ? (
+              <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5"
+            onPress={openExportModal}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <ActivityIndicator color={theme.brandPrimary} size="small" />
+            ) : (
+              <>
+                <Ionicons name="download-outline" size={18} color={theme.brandInk} />
+                <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                  {t('admin.exportExcel')}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Liste en sections : en attente / déjà traitées, repliables ; tri par date de création (récent d’abord). */}
       <FlatList
@@ -848,6 +1021,271 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                             }`}
                             style={
                               selectedEmployee === emp.id ? { color: theme.brandPrimary } : undefined
+                            }
+                          >
+                            {emp.full_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Export Excel : options période + employé */}
+      <Modal
+        visible={showExportModal}
+        animationType="slide"
+        transparent
+        onRequestClose={closeExportModal}
+      >
+        <View
+          className="flex-1 justify-end"
+          style={
+            IS_WEB
+              ? { justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 }
+              : undefined
+          }
+        >
+          <Pressable
+            className="absolute inset-0 bg-black/40"
+            onPress={closeExportModal}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.cancel')}
+          />
+          <View
+            className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[92%] relative overflow-visible"
+            style={
+              IS_WEB
+                ? {
+                    borderRadius: 24,
+                    maxHeight: '85%',
+                    maxWidth: 560,
+                    width: '100%',
+                    alignSelf: 'center',
+                    borderTopWidth: 0,
+                    borderWidth: 1,
+                    borderColor: 'rgba(36, 41, 73, 0.08)',
+                  }
+                : undefined
+            }
+          >
+            {exportSheetView === 'main' ? (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 28, paddingBottom: 40 }}
+              >
+                <Text className="text-xl font-bold text-gray-900 mb-2">{t('admin.exportModalTitle')}</Text>
+                <Text className="text-gray-500 text-sm mb-6 leading-5">{t('admin.exportModalHint')}</Text>
+
+                <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByEmployee')}</Text>
+                <Text className="text-gray-500 text-xs mb-2 leading-4">{t('admin.filterEmployeeHint')}</Text>
+                <View className="flex-row items-stretch gap-2 mb-4">
+                  <TouchableOpacity
+                    className={`px-4 py-3 rounded-xl border justify-center ${
+                      !exportEmployeeId
+                        ? 'bg-primary-600 border-primary-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                    onPress={() => setExportEmployeeId(undefined)}
+                  >
+                    <Text
+                      className={`text-sm font-medium ${
+                        !exportEmployeeId ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {t('common.all')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`flex-1 min-w-0 flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                      exportEmployeeId ? 'border-primary-300 bg-primary-50/50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                    onPress={() => employees.length > 0 && setExportEmployeePickerOpen(true)}
+                    disabled={employees.length === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.selectEmployeePlaceholder')}
+                  >
+                    <Text
+                      className={`text-sm font-medium flex-1 pr-2 ${exportEmployeeId ? 'text-gray-900' : 'text-gray-400'}`}
+                      numberOfLines={1}
+                    >
+                      {exportEmployeeId
+                        ? employees.find(e => e.id === exportEmployeeId)?.full_name ?? exportEmployeeId
+                        : t('admin.selectEmployeePlaceholder')}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={theme.inkMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByDate')}</Text>
+                <TouchableOpacity
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 mb-2 active:opacity-80"
+                  onPress={openExportDateRangeInSheet}
+                >
+                  <Text
+                    className={`text-sm font-medium ${exportDateRangeSummary ? 'text-gray-900' : 'text-gray-400'}`}
+                  >
+                    {exportDateRangeSummary || t('admin.dateRangePlaceholder')}
+                  </Text>
+                </TouchableOpacity>
+                <Text className="text-gray-500 text-xs mb-6 leading-4">{t('admin.dateRangeHint')}</Text>
+
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    className="flex-1 border border-gray-200 rounded-full py-3.5 items-center bg-surface"
+                    onPress={closeExportModal}
+                  >
+                    <Text className="text-gray-800 font-semibold">{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="flex-1 bg-primary-600 rounded-full py-3.5 items-center"
+                    onPress={() => void runExportFromModal()}
+                    disabled={exporting}
+                  >
+                    {exporting ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text className="text-white font-bold">{t('admin.exportConfirm')}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <View className="px-5 pt-5 pb-3 border-b border-gray-100">
+                  <TouchableOpacity
+                    className="self-start py-1 mb-2"
+                    onPress={() => {
+                      if (exportDateFrom) {
+                        setExportPick({
+                          start: exportDateFrom,
+                          end:
+                            exportDateTo && exportDateTo !== exportDateFrom ? exportDateTo : null,
+                        });
+                      } else {
+                        setExportPick({ start: null, end: null });
+                      }
+                      setExportSheetView('main');
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.back')}
+                  >
+                    <Text className="text-primary-600 font-semibold text-base">{t('common.back')}</Text>
+                  </TouchableOpacity>
+                  <Text className="text-xl font-bold text-gray-900">{t('admin.selectDateRange')}</Text>
+                </View>
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: 16 }}
+                >
+                  <View className="px-5 pt-3">
+                    <Text className="text-gray-500 text-sm mb-4 leading-5">
+                      {t('admin.dateRangeHint')}
+                    </Text>
+                    <Calendar
+                      firstDay={1}
+                      enableSwipeMonths
+                      markingType="period"
+                      markedDates={rangeMarkedExport}
+                      onDayPress={onExportRangeDayPress}
+                      current={exportPick.start || exportDateFrom || undefined}
+                      theme={{
+                        todayTextColor: theme.brandPrimary,
+                        arrowColor: theme.brandPrimary,
+                        monthTextColor: '#111827',
+                        textMonthFontWeight: '700',
+                        textDayHeaderFontWeight: '600',
+                        textSectionTitleColor: '#6b7280',
+                      }}
+                    />
+                  </View>
+                </ScrollView>
+                <View className="px-5 pb-8 pt-3 border-t border-gray-100 gap-3">
+                  <TouchableOpacity
+                    className="border border-gray-200 rounded-full py-3 items-center bg-surface"
+                    onPress={() => setExportPick({ start: null, end: null })}
+                  >
+                    <Text className="text-gray-800 font-semibold text-sm">
+                      {t('admin.clearDateRange')}
+                    </Text>
+                  </TouchableOpacity>
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity
+                      className="flex-1 border border-gray-200 rounded-full py-3.5 items-center bg-surface"
+                      onPress={() => {
+                        if (exportDateFrom) {
+                          setExportPick({
+                            start: exportDateFrom,
+                            end:
+                              exportDateTo && exportDateTo !== exportDateFrom ? exportDateTo : null,
+                          });
+                        } else {
+                          setExportPick({ start: null, end: null });
+                        }
+                        setExportSheetView('main');
+                      }}
+                    >
+                      <Text className="text-gray-800 font-semibold text-sm">{t('common.cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="flex-1 bg-primary-600 rounded-full py-3.5 items-center"
+                      onPress={confirmExportDateRange}
+                    >
+                      <Text className="text-white font-bold text-sm">{t('common.confirm')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+            {exportEmployeePickerOpen && exportSheetView === 'main' ? (
+              <View
+                className="justify-end"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  zIndex: 100,
+                }}
+                pointerEvents="box-none"
+              >
+                <Pressable
+                  className="flex-1 bg-black/40"
+                  onPress={() => setExportEmployeePickerOpen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                />
+                <View className="bg-white rounded-t-[24px] border-t border-gray-200 px-4 pt-4 pb-5 shadow-lg">
+                  <Text className="text-ink font-bold text-base mb-1">{t('admin.filterByEmployee')}</Text>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 280 }}
+                    nestedScrollEnabled
+                  >
+                    {employees.length === 0 ? (
+                      <Text className="text-gray-500 text-sm py-4">{t('admin.noEmployeesWithExpenses')}</Text>
+                    ) : (
+                      employees.map(emp => (
+                        <TouchableOpacity
+                          key={emp.id}
+                          className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                          onPress={() => {
+                            setExportEmployeeId(emp.id);
+                            setExportEmployeePickerOpen(false);
+                          }}
+                        >
+                          <Text
+                            className={`text-base ${
+                              exportEmployeeId === emp.id ? 'font-bold' : 'font-medium text-gray-900'
+                            }`}
+                            style={
+                              exportEmployeeId === emp.id ? { color: theme.brandPrimary } : undefined
                             }
                           >
                             {emp.full_name}

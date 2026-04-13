@@ -31,9 +31,6 @@ export const webHeroStatBoxStyle: ViewStyle = {
 /** Largeur max utile pour zones de contenu dense (tableaux, listes) — optionnel par écran. */
 export const WEB_MAX_CONTENT_WIDTH = 1440;
 
-/** Maquette web : barre latérale + zone centrale dans une coque max ~1440px. */
-export const WEB_DESKTOP_MAX_WIDTH = 1440;
-
 /** Sidebar (tabs gauche) — alignée sur la maquette « dashboard ». */
 export const WEB_SIDEBAR_WIDTH = 260;
 
@@ -53,12 +50,12 @@ export const webAppShellOuter: ViewStyle = {
   backgroundColor: 'transparent',
 };
 
-/** Contenu applicatif : coque centrée type maquette (sidebar + scène). */
+/** Contenu applicatif web : pleine largeur pour coller la sidebar au bord gauche du viewport. */
 export const webAppShellInner: ViewStyle = {
   flex: 1,
   width: '100%',
-  maxWidth: WEB_DESKTOP_MAX_WIDTH,
-  alignSelf: 'center',
+  maxWidth: '100%',
+  alignSelf: 'stretch',
   backgroundColor: 'transparent',
 };
 

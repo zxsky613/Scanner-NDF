@@ -12,6 +12,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
+  type ViewStyle,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +32,15 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import { showAppAlert } from '../../utils/alert';
-import { IS_WEB, WEB_CARD_GUTTER_CLASS, WEB_PAGE_GUTTER_CLASS } from '../../config/webLayout';
+import {
+  IS_WEB,
+  WEB_CARD_GUTTER_CLASS,
+  WEB_HERO_CARD_CLASS,
+  WEB_PAGE_GUTTER_CLASS,
+  webHeaderOuterInlineStyle,
+  webHeroCardInlineStyle,
+} from '../../config/webLayout';
+import { userRoleLabel } from '../../utils/userRoleLabel';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -98,7 +108,9 @@ type WebExpenseRowWebProps = {
   onOpenDelete: (id: string) => void;
 };
 
-/** Ligne web : montant + statut + menu regroupés ; les trois points ouvrent Voir / Modifier / Supprimer (pas d’icônes visibles en permanence). */
+const WEB_MENU_W = 228;
+
+/** Ligne web : menu contextuel (Voir / Modifier / Supprimer) ancré près des trois points. */
 function WebExpenseRowWeb({
   item,
   expanded,
@@ -110,16 +122,60 @@ function WebExpenseRowWeb({
   onOpenDelete,
 }: WebExpenseRowWebProps) {
   const pending = item.status === 'pending';
+  const menuBtnRef = useRef<View>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!expanded) setMenuAnchor(null);
+  }, [expanded]);
+
+  const onMenuButtonPress = () => {
+    if (expanded) {
+      onCollapse();
+      return;
+    }
+    const node = menuBtnRef.current;
+    if (node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((x, y, width, height) => {
+        setMenuAnchor({ x, y, width, height });
+        onToggleExpand();
+      });
+    } else {
+      onToggleExpand();
+    }
+  };
+
+  const menuPosition = (() => {
+    if (!menuAnchor) return null;
+    const { width: winW, height: winH } = Dimensions.get('window');
+    const pad = 10;
+    const rows = pending ? 3 : 1;
+    const estH = rows * 48 + 12;
+    let top = menuAnchor.y + menuAnchor.height + 6;
+    if (top + estH > winH - pad) {
+      top = Math.max(pad, menuAnchor.y - estH - 6);
+    }
+    let left = menuAnchor.x + menuAnchor.width - WEB_MENU_W;
+    left = Math.max(pad, Math.min(left, winW - WEB_MENU_W - pad));
+    return { top, left };
+  })();
 
   const menuBtn = (
-    <Pressable
-      className="p-1.5 rounded-lg active:bg-gray-200/80 shrink-0"
-      onPress={onToggleExpand}
-      accessibilityRole="button"
-      accessibilityLabel={t('employee.webExpenseActionsMenu')}
-    >
-      <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
-    </Pressable>
+    <View ref={menuBtnRef} collapsable={false}>
+      <Pressable
+        className="p-1.5 rounded-lg active:bg-gray-200/80 shrink-0"
+        onPress={onMenuButtonPress}
+        accessibilityRole="button"
+        accessibilityLabel={t('employee.webExpenseActionsMenu')}
+      >
+        <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
+      </Pressable>
+    </View>
   );
 
   return (
@@ -184,55 +240,6 @@ function WebExpenseRowWeb({
           </View>
         </View>
 
-        {expanded ? (
-          <View className="border-t border-gray-200 bg-gray-50/95 px-3 py-2 flex-row flex-wrap gap-2">
-            <Pressable
-              className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
-              onPress={() => {
-                onCollapse();
-                navigation.navigate('ExpenseDetail', { expense: item });
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={t('employee.swipeView')}
-            >
-              <Ionicons name="eye-outline" size={18} color={swipeStyles.iconView} />
-              <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                {t('employee.swipeView')}
-              </Text>
-            </Pressable>
-            {pending ? (
-              <>
-                <Pressable
-                  className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
-                  onPress={() => {
-                    onCollapse();
-                    navigation.navigate('NewExpense', { editExpense: item });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('common.edit')}
-                >
-                  <Ionicons name="create-outline" size={18} color={swipeStyles.iconEdit} />
-                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                    {t('common.edit')}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-white border border-red-200 active:bg-red-50/80"
-                  onPress={() => {
-                    onCollapse();
-                    onOpenDelete(item.id);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('common.delete')}
-                >
-                  <Ionicons name="trash-outline" size={18} color={swipeStyles.iconDelete} />
-                  <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
-                </Pressable>
-              </>
-            ) : null}
-          </View>
-        ) : null}
-
         {(item.is_fiscal_alert || item.is_flagged_duplicate) && (
           <View className="flex-row flex-wrap gap-2 px-4 pb-3 pt-0 border-t border-gray-100 bg-surface/50">
             {item.is_fiscal_alert ? (
@@ -252,6 +259,87 @@ function WebExpenseRowWeb({
           </View>
         )}
       </View>
+
+      <Modal
+        visible={expanded && menuPosition !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={onCollapse}
+      >
+        <View className="flex-1">
+          <Pressable
+            className="flex-1"
+            style={{ backgroundColor: 'rgba(36, 41, 73, 0.14)' }}
+            onPress={onCollapse}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+          />
+          {menuPosition ? (
+            <View
+              className="rounded-xl border border-gray-200/90 bg-white overflow-hidden py-1"
+              style={
+                {
+                  position: 'absolute',
+                  top: menuPosition.top,
+                  left: menuPosition.left,
+                  width: WEB_MENU_W,
+                  zIndex: 10,
+                  ...(Platform.OS === 'web'
+                    ? { boxShadow: '0 12px 40px rgba(36, 41, 73, 0.14)' }
+                    : { elevation: 12 }),
+                } as ViewStyle
+              }
+            >
+              <Pressable
+                className="flex-row items-center gap-3 px-4 py-3 active:bg-gray-50"
+                onPress={() => {
+                  onCollapse();
+                  navigation.navigate('ExpenseDetail', { expense: item });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('employee.swipeView')}
+              >
+                <Ionicons name="eye-outline" size={20} color={swipeStyles.iconView} />
+                <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                  {t('employee.swipeView')}
+                </Text>
+              </Pressable>
+              {pending ? (
+                <>
+                  <View className="h-px bg-gray-100 mx-3" />
+                  <Pressable
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-gray-50"
+                    onPress={() => {
+                      onCollapse();
+                      navigation.navigate('NewExpense', { editExpense: item });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.edit')}
+                  >
+                    <Ionicons name="create-outline" size={20} color={swipeStyles.iconEdit} />
+                    <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                      {t('common.edit')}
+                    </Text>
+                  </Pressable>
+                  <View className="h-px bg-gray-100 mx-3" />
+                  <Pressable
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-red-50"
+                    onPress={() => {
+                      onCollapse();
+                      onOpenDelete(item.id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.delete')}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={swipeStyles.iconDelete} />
+                    <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -300,19 +388,6 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
       };
     }, [])
   );
-
-  /** Clic en dehors de la ligne (web) : referme le panneau. */
-  useEffect(() => {
-    if (!IS_WEB || !webExpandedRowId) return;
-    const close = () => setWebExpandedRowId(null);
-    const t = setTimeout(() => {
-      if (typeof document !== 'undefined') document.addEventListener('click', close);
-    }, 0);
-    return () => {
-      clearTimeout(t);
-      if (typeof document !== 'undefined') document.removeEventListener('click', close);
-    };
-  }, [webExpandedRowId]);
 
   const openFilterModal = () => {
     if (IS_WEB) setWebExpandedRowId(null);
@@ -399,29 +474,43 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   const webListTableHeader = IS_WEB ? (
     <View className={`${cardX} mb-1`}>
       <View className="rounded-xl border border-gray-200/90 bg-gray-50/95 overflow-hidden">
-        <View className="flex-row items-stretch">
-          <View className="flex-1 flex-row items-center px-4 py-2.5 gap-3 min-w-0">
-            <View className="w-10 shrink-0" />
-            <View className="flex-1 min-w-0">
-              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+        <View className="flex-row items-center">
+          <View className="flex-1 min-w-0 flex-row items-center px-4 py-3.5 gap-3">
+            <View
+              className="w-10 h-10 rounded-lg shrink-0 border border-transparent"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+            <View className="flex-1 min-w-0 justify-center">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500 leading-tight">
                 {t('expense.category')} · {t('expense.supplier')}
               </Text>
-              <Text className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mt-0.5">
+              <Text className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mt-1 leading-tight">
                 {t('expense.receiptDate')} · {t('expense.requestCreatedAt')}
               </Text>
             </View>
           </View>
           <View
-            className="border-l border-gray-200/80 bg-gray-50/95 items-start justify-center px-2 py-2 gap-1 shrink-0"
-            style={{ width: WEB_ROW_TRAIL_COL_W }}
+            className="border-l border-gray-100 bg-gray-50/80 shrink-0 flex-row items-center gap-2 pl-2 pr-1 py-2"
+            style={{
+              width: WEB_ROW_TRAIL_COL_W,
+              minWidth: WEB_ROW_TRAIL_COL_W,
+              flexShrink: 0,
+            }}
           >
-            <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              {t('expense.amountTTC')}
-            </Text>
-            <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              {t('expense.status')}
-            </Text>
-            <View className="h-[22px]" />
+            <View className="flex-1 min-w-0 items-start justify-center">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500 leading-tight">
+                {t('expense.amountTTC')}
+              </Text>
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-1 leading-tight">
+                {t('expense.status')}
+              </Text>
+            </View>
+            <View
+              className="shrink-0 items-center justify-center rounded-lg"
+              style={{ width: 34, height: 34 }}
+              accessibilityElementsHidden
+            />
           </View>
         </View>
       </View>
@@ -577,94 +666,99 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         <View className="flex-1 min-h-0">
           <View
             className={`${pageX} pb-2 shrink-0`}
-            style={{ paddingTop: headerPaddingTop(insets.top) }}
+            style={[{ paddingTop: headerPaddingTop(insets.top) }, webHeaderOuterInlineStyle]}
           >
-            <View className="flex-row items-start justify-between border-b border-gray-200/80 pb-3">
-              <View className="flex-1 min-w-0 pr-3">
+            <View
+              className={`${WEB_HERO_CARD_CLASS} overflow-hidden`}
+              style={[
+                {
+                  backgroundColor: theme.heroHeaderBg,
+                  borderWidth: 1,
+                  borderColor: theme.heroHeaderBorder,
+                  ...heroHeaderShadow,
+                },
+                webHeroCardInlineStyle,
+              ]}
+            >
+              <View>
                 <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
                   {t('common.appName')}
                 </AppNameText>
-                <ScreenHeroTitle className="mt-1 text-xl leading-snug">{t('employee.scanReceipt')}</ScreenHeroTitle>
-                <Text className="text-gray-500 text-xs mt-0.5">{profile.full_name}</Text>
-              </View>
-              <TouchableOpacity
-                className="flex-row items-center gap-2 px-3 py-2 rounded-lg border border-gray-200/90 bg-white shrink-0"
-                onPress={() => navigation.navigate('NewExpense')}
-              >
-                <Ionicons name="add-outline" size={18} color={theme.brandInk} />
-                <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                  {t('employee.manualEntry')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="flex-row gap-3 mt-3">
-              <View className="flex-1 rounded-xl border border-gray-200/90 bg-white px-3 py-2.5">
-                <Text className="text-gray-500 text-[9px] font-semibold uppercase tracking-wide">
-                  {t('admin.totalExpenses')}
-                </Text>
-                <Text className="text-lg font-bold mt-0.5" style={{ color: theme.brandInk }}>
-                  {expenses.length}
-                </Text>
-              </View>
-              <View className="flex-1 rounded-xl border border-primary-200/60 bg-primary-50/50 px-3 py-2.5">
-                <Text className="text-primary-700 text-[9px] font-semibold uppercase tracking-wide">
-                  {t('expense.pending')}
-                </Text>
-                <Text className="text-lg font-bold mt-0.5 text-primary-700">{pendingCount}</Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => navigation.navigate('NewExpense')}
-              className="mt-4 rounded-xl border-2 border-dashed border-gray-300/90 bg-surface/80 px-5 py-5 flex-row items-center gap-4 active:opacity-95"
-            >
-              <View className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100 shrink-0">
-                <Ionicons name="cloud-upload-outline" size={28} color={theme.brandPrimary} />
-              </View>
-              <View className="flex-1 min-w-0">
-                <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
-                  {t('employee.scanDropTitle')}
-                </Text>
-                <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
-                  {t('employee.scanDropDesc')}
-                </Text>
-                <View className="mt-2 flex-row items-center gap-2 self-start bg-primary-600 rounded-lg px-4 py-2">
-                  <Ionicons name="folder-open-outline" size={16} color="#fff" />
-                  <Text className="text-white font-semibold text-xs">{t('employee.browseFiles')}</Text>
+                <View className="flex-row items-center justify-between gap-3 mt-1">
+                  <View className="flex-1 min-w-0 pr-2">
+                    <ScreenHeroTitle>{t('employee.scanReceipt')}</ScreenHeroTitle>
+                  </View>
+                  <View className="flex-row gap-2 shrink-0 items-center flex-wrap justify-end">
+                    <TouchableOpacity
+                      onPress={openFilterModal}
+                      className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
+                      style={{
+                        borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
+                        backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
+                      }}
+                    >
+                      <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
+                      <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                        {t('employee.filterNotes')}
+                      </Text>
+                      {filtersActive ? (
+                        <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
+                          <Text className="text-white text-[10px] font-bold">
+                            {t('employee.filtersActive')}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setListFilters({})}>
+                      <Text style={{ color: theme.brandPrimary, fontWeight: '500', fontSize: 14 }}>
+                        {t('employee.viewAll')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+                <Text className="text-gray-500 text-xs mt-0.5">
+                  {profile.full_name} · {userRoleLabel(profile.role, t)}
+                </Text>
               </View>
-            </Pressable>
 
-            <View className="flex-row flex-wrap items-center justify-between gap-2 mt-4 mb-1">
+              <View className="flex-row gap-2.5 mt-3 items-stretch flex-wrap">
+                <View className="min-w-[140px] flex-1 bg-surface rounded-2xl px-2.5 py-2 border border-gray-100 justify-center">
+                  <Text className="text-gray-400 text-[11px] font-medium">{t('admin.totalExpenses')}</Text>
+                  <Text className="font-bold text-lg mt-0.5" style={{ color: theme.brandInk }}>
+                    {expenses.length}
+                  </Text>
+                </View>
+                <View className="min-w-[140px] flex-1 bg-amber-50 rounded-2xl px-2.5 py-2 border border-amber-100 justify-center">
+                  <Text className="text-amber-700 text-[11px] font-semibold">{t('expense.pending')}</Text>
+                  <Text className="text-amber-800 font-bold text-lg mt-0.5">{pendingCount}</Text>
+                </View>
+                <Pressable
+                  onPress={() => navigation.navigate('NewExpense')}
+                  className="flex-[3] min-w-0 rounded-2xl border-2 border-dashed border-gray-300/90 bg-surface px-3 py-3 flex-row items-center gap-3 active:opacity-95"
+                >
+                  <View className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100 shrink-0">
+                    <Ionicons name="cloud-upload-outline" size={28} color={theme.brandPrimary} />
+                  </View>
+                  <View className="flex-1 min-w-0">
+                    <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
+                      {t('employee.scanDropTitle')}
+                    </Text>
+                    <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
+                      {t('employee.scanDropDesc')}
+                    </Text>
+                    <View className="mt-2 flex-row items-center gap-2 self-start bg-primary-600 rounded-lg px-4 py-2">
+                      <Ionicons name="folder-open-outline" size={16} color="#fff" />
+                      <Text className="text-white font-semibold text-xs">{t('employee.browseFiles')}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            <View className="mt-4 mb-1">
               <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
                 {t('employee.recentScanned')}
               </Text>
-              <View className="flex-row items-center gap-2">
-                <TouchableOpacity
-                  onPress={openFilterModal}
-                  className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
-                  style={{
-                    borderColor: filtersActive ? theme.heroHeaderBorder : undefined,
-                    backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
-                  }}
-                >
-                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
-                  <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                    {t('employee.filterNotes')}
-                  </Text>
-                  {filtersActive ? (
-                    <View className="bg-primary-600 rounded-md px-1.5 py-0.5">
-                      <Text className="text-white text-[10px] font-bold">{t('employee.filtersActive')}</Text>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setListFilters({})}>
-                  <Text style={{ color: theme.brandPrimary, fontWeight: '500', fontSize: 14 }}>
-                    {t('employee.viewAll')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
 
@@ -738,7 +832,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                     backgroundColor: filtersActive ? theme.heroHeaderBg : undefined,
                   }}
                 >
-                  <Text className="text-base">🔍</Text>
+                  <Ionicons name="filter-outline" size={18} color={theme.brandInk} />
                   <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
                     {t('employee.filterNotes')}
                   </Text>

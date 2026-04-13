@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage } from '../../i18n';
 import { showAppConfirm } from '../../utils/alert';
@@ -27,6 +27,27 @@ const languages: { code: SupportedLanguage; label: string; flag: string }[] = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
   { code: 'zh', label: '中文', flag: '🇨🇳' },
 ];
+
+/** Sur le web, les emoji-drapeaux sont souvent non rendus (ex. Windows) ; images fiables. */
+const LANGUAGE_FLAG_URI: Record<SupportedLanguage, string> = {
+  fr: 'https://flagcdn.com/w40/fr.png',
+  en: 'https://flagcdn.com/w40/gb.png',
+  zh: 'https://flagcdn.com/w40/cn.png',
+};
+
+function LanguageFlagIcon({ code, emoji }: { code: SupportedLanguage; emoji: string }) {
+  if (IS_WEB) {
+    return (
+      <Image
+        source={{ uri: LANGUAGE_FLAG_URI[code] }}
+        style={{ width: 32, height: 22, borderRadius: 3, marginRight: 12 }}
+        resizeMode="cover"
+        accessibilityLabel={emoji}
+      />
+    );
+  }
+  return <Text className="text-2xl mr-3">{emoji}</Text>;
+}
 
 export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
   const insets = useSafeAreaInsets();
@@ -128,7 +149,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
                 }`}
                 onPress={() => handleLanguageChange(lang.code)}
               >
-                <Text className="text-2xl mr-3">{lang.flag}</Text>
+                <LanguageFlagIcon code={lang.code} emoji={lang.flag} />
                 <Text
                   className={`font-medium text-base flex-1 ${
                     i18n.language === lang.code ? 'text-primary-700' : 'text-gray-700'
