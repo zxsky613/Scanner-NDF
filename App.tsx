@@ -28,7 +28,7 @@ const webNavigationTheme: Theme = {
 };
 
 const AppContent: React.FC = () => {
-  const { session, profile, loading, signIn, signUp, signOut, isAdmin } = useAuth();
+  const { session, profile, loading, signIn, signUp, signOut, isAdmin, isCrmAccess } = useAuth();
 
   if (loading) {
     return (
@@ -48,7 +48,12 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <MainNavigator profile={profile} isAdmin={isAdmin} onLogout={signOut} />
+    <MainNavigator
+      profile={profile}
+      isAdmin={isAdmin}
+      isCrmAccess={isCrmAccess}
+      onLogout={signOut}
+    />
   );
 };
 

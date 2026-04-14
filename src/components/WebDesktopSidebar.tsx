@@ -8,6 +8,7 @@ import { theme } from '../config/theme';
 import { Font } from '../config/fonts';
 import { WEB_SIDEBAR_WIDTH } from '../config/webLayout';
 import type { Profile } from '../types';
+import { userRoleLabel } from '../utils/userRoleLabel';
 import { AppNameText } from './AppNameText';
 
 type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -15,6 +16,7 @@ type TabIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 const ROUTE_ICONS: Partial<Record<string, TabIconName>> = {
   ExpensesTab: 'clipboard-text-outline',
   AdminTab: 'view-dashboard-outline',
+  CrmTab: 'briefcase-outline',
   NotificationsTab: 'bell-outline',
   SettingsTab: 'cog-outline',
 };
@@ -139,7 +141,7 @@ export function WebDesktopSidebar({ state, descriptors, navigation, profile }: P
             {profile.full_name}
           </Text>
           <Text style={styles.userRole} numberOfLines={1}>
-            {t(`roles.${profile.role}`)}
+            {userRoleLabel(profile.role, t)}
           </Text>
         </View>
       </View>

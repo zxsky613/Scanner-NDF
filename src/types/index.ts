@@ -1,5 +1,5 @@
-/** Rôles proposés à l’inscription et au métadonnées Supabase. */
-export type UserRole = 'employee' | 'finance';
+/** Rôles proposés à l’inscription et aux métadonnées Supabase. */
+export type UserRole = 'employee' | 'sales' | 'finance';
 
 /** Ancien rôle encore présent en base / RLS (non proposé à l’inscription). */
 export type LegacyManagerRole = 'manager';
@@ -8,6 +8,49 @@ export type StoredUserRole = UserRole | LegacyManagerRole;
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected';
 export type ExpenseCategory = 'food' | 'materials' | 'travel' | 'other';
 export type SupportedLanguage = 'fr' | 'en' | 'zh';
+
+export type ProjectCategory =
+  | 'sorting_equipment'
+  | 'warehouse_equipment'
+  | 'low_voltage'
+  | 'office_renovation'
+  | 'procurement_equipment';
+
+export type ProjectStatus = 'lead' | 'quote' | 'contract' | 'delivery' | 'lost';
+
+export const PROJECT_CATEGORY_KEYS: ProjectCategory[] = [
+  'sorting_equipment',
+  'warehouse_equipment',
+  'low_voltage',
+  'office_renovation',
+  'procurement_equipment',
+];
+
+export const PROJECT_STATUS_KEYS: ProjectStatus[] = [
+  'lead',
+  'quote',
+  'contract',
+  'delivery',
+  'lost',
+];
+
+/** Profil du créateur / personne en charge (jointure Supabase). */
+export type ProjectCreator = Pick<Profile, 'id' | 'full_name' | 'email'>;
+
+export interface Project {
+  id: string;
+  name: string;
+  category: ProjectCategory;
+  status: ProjectStatus;
+  scale: string;
+  cycle: string;
+  client_contact: string;
+  created_by?: string | null;
+  /** Alias PostgREST : `creator:profiles!…` */
+  creator?: ProjectCreator | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Profile {
   id: string;
@@ -49,6 +92,9 @@ export interface Expense {
   is_fiscal_alert: boolean;
   created_at: string;
   updated_at: string;
+  /** Projet rattaché ; null / absent = dépense « Quotidien ». */
+  project_id?: string | null;
+  projects?: { id: string; name: string } | null;
   profiles?: Profile;
 }
 
@@ -63,6 +109,9 @@ export interface AIExtractionResult {
   confidence: number;
 }
 
+/** Filtre projet : tous | sans projet (quotidien) | id UUID. */
+export type ExpenseProjectFilter = 'all' | 'daily' | string;
+
 export interface ExpenseFilters {
   status?: ExpenseStatus;
   category?: ExpenseCategory;
@@ -71,6 +120,7 @@ export interface ExpenseFilters {
   date_to?: string;
   /** Filtre côté API : fournisseur contient cette chaîne (insensible à la casse). */
   supplier_search?: string;
+  project_filter?: ExpenseProjectFilter;
 }
 
 export type NotificationType =

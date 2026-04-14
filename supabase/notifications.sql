@@ -30,6 +30,10 @@ CREATE POLICY "Users update own notifications"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users delete own notifications"
+  ON notifications FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- Pas de policy INSERT : uniquement via trigger SECURITY DEFINER
 
 CREATE OR REPLACE FUNCTION public.notify_on_expense_change()

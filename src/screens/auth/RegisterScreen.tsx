@@ -22,9 +22,10 @@ import { theme, headerPaddingTop } from '../../config/theme';
 import { FINANCE_REGISTRATION_ACCESS_CODE } from '../../config/financeRegistration';
 import { IS_WEB } from '../../config/webLayout';
 
-const REGISTER_ROLE_OPTIONS: UserRole[] = ['employee', 'finance'];
+const REGISTER_ROLE_OPTIONS: UserRole[] = ['employee', 'sales', 'finance'];
 const REGISTER_ROLE_ICONS: Record<UserRole, string> = {
   employee: '👤',
+  sales: '💼',
   finance: '💰',
 };
 
@@ -51,7 +52,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
 
   const setRoleAndResetCode = (r: UserRole) => {
     setRole(r);
-    if (r === 'employee') setAccessCode('');
+    if (r !== 'finance') setAccessCode('');
   };
 
   const handleRegister = async () => {
@@ -199,11 +200,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
 
             <View className={`w-full ${role === 'finance' ? 'mb-4' : 'mb-6'}`}>
               <Text className="text-gray-700 font-medium mb-3">{t('auth.roleLabel')}</Text>
-              <View className="flex-row gap-2 w-full">
+              <View className="flex-row flex-wrap gap-2 w-full justify-center">
                 {REGISTER_ROLE_OPTIONS.map(rValue => (
                   <TouchableOpacity
                     key={rValue}
-                    className={`flex-1 py-3.5 rounded-full items-center border ${
+                    className={`min-w-[30%] flex-grow max-w-[48%] py-3.5 px-2 rounded-full items-center border ${
                       role === rValue
                         ? 'bg-primary-600 border-primary-600'
                         : 'bg-white border-gray-100'
@@ -211,9 +212,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
                     onPress={() => setRoleAndResetCode(rValue)}
                   >
                     <Text
-                      className={`font-medium text-sm ${
+                      className={`font-medium text-xs text-center ${
                         role === rValue ? 'text-white' : 'text-gray-700'
                       }`}
+                      numberOfLines={2}
                     >
                       {`${REGISTER_ROLE_ICONS[rValue]} ${t(`roles.${rValue}`)}`}
                     </Text>

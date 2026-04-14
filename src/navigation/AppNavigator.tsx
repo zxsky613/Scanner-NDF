@@ -17,8 +17,10 @@ import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { CrmProjectsScreen } from '../screens/crm/CrmProjectsScreen';
 import { IS_WEB, webLeftTabBarStyle } from '../config/webLayout';
 import { WebDesktopSidebar } from '../components/WebDesktopSidebar';
+import { hasExpenseManagementAccess } from '../lib/roles';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -90,9 +92,22 @@ const NotificationsStack: React.FC<NotificationsStackProps> = ({ profile }) => (
   </Stack.Navigator>
 );
 
+interface CrmStackProps {
+  profile: Profile;
+}
+
+const CrmStack: React.FC<CrmStackProps> = ({ profile }) => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="CrmHome">
+      {(props: any) => <CrmProjectsScreen {...props} profile={profile} />}
+    </Stack.Screen>
+  </Stack.Navigator>
+);
+
 interface MainNavigatorProps {
   profile: Profile;
   isAdmin: boolean;
+  isCrmAccess: boolean;
   onLogout: () => Promise<void>;
 }
 
@@ -119,10 +134,11 @@ const TabIcon = ({ name, focused }: { name: TabIconName; focused: boolean }) => 
 const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   profile,
   isAdmin,
+  isCrmAccess,
   onLogout,
 }) => {
   const { t } = useTranslation();
-  const { unreadCount } = useNotificationsContext();
+  const { unreadCount, pendingExpenseCount } = useNotificationsContext();
 
   const mobileTabBarStyle: ViewStyle = {
     height: Platform.OS === 'ios' ? 92 : 80,
@@ -191,6 +207,20 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
         {() => <EmployeeStack profile={profile} />}
       </Tab.Screen>
 
+      {isCrmAccess && (
+        <Tab.Screen
+          name="CrmTab"
+          options={{
+            tabBarLabel: t('navTabs.crm'),
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="briefcase-outline" focused={focused} />
+            ),
+          }}
+        >
+          {() => <CrmStack profile={profile} />}
+        </Tab.Screen>
+      )}
+
       {isAdmin && (
         <Tab.Screen
           name="AdminTab"
@@ -199,6 +229,12 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
             tabBarIcon: ({ focused }) => (
               <TabIcon name="view-dashboard-outline" focused={focused} />
             ),
+            tabBarBadge:
+              pendingExpenseCount > 0
+                ? pendingExpenseCount > 99
+                  ? '99+'
+                  : pendingExpenseCount
+                : undefined,
           }}
         >
           {() => <AdminStack profile={profile} />}
@@ -233,7 +269,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
 export const MainNavigator: React.FC<MainNavigatorProps> = props => (
   <NotificationsProvider
     userId={props.profile.id}
-    viewerIsReviewer={props.profile.role === 'finance' || props.profile.role === 'manager'}
+    viewerIsReviewer={hasExpenseManagementAccess(props.profile.role)}
   >
     <MainNavigatorInner {...props} />
   </NotificationsProvider>

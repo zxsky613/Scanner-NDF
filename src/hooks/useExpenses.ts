@@ -6,8 +6,28 @@ import { FISCAL_ALERT_THRESHOLD } from '../config/constants';
 
 export type FetchExpensesResult = { ok: true; count: number } | { ok: false };
 
+const EXPENSE_SELECT_WITH_PROJECT = '*, projects(id, name)';
+
 function sortExpensesByCreatedAtDesc(a: Expense, b: Expense): number {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
+type ExpenseRow = Expense & { projects?: { id: string; name: string } | null };
+
+/** Erreurs liées au schéma CRM / colonne project (migration pas encore appliquée ou cache PostgREST). */
+function looksLikeProjectSchemaError(err: unknown): boolean {
+  const raw =
+    err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : String(err ?? '');
+  const m = raw.toLowerCase();
+  return (
+    m.includes('project_id') ||
+    m.includes('projects') ||
+    m.includes('schema cache') ||
+    m.includes('could not find') ||
+    m.includes('column') && m.includes('does not exist')
+  );
 }
 
 export const useExpenses = (userId?: string, isAdmin = false) => {
@@ -17,37 +37,85 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
 
   const fetchExpensesSnapshot = useCallback(
     async (filters?: ExpenseFilters): Promise<Expense[]> => {
-      let query = supabase
-        .from('expenses')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const applyFilters = (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        q: any,
+        opts: { useProjectFilter: boolean }
+      ) => {
+        let query = q;
+        if (!isAdmin && userId) {
+          query = query.eq('user_id', userId);
+        }
+        if (filters?.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters?.category) {
+          query = query.eq('category', filters.category);
+        }
+        if (filters?.employee_id) {
+          query = query.eq('user_id', filters.employee_id);
+        }
+        if (filters?.date_from) {
+          query = query.gte('receipt_date', filters.date_from);
+        }
+        if (filters?.date_to) {
+          query = query.lte('receipt_date', filters.date_to);
+        }
+        const supplierQ = filters?.supplier_search?.trim();
+        if (supplierQ) {
+          query = query.ilike('supplier', `%${supplierQ}%`);
+        }
+        if (opts.useProjectFilter) {
+          const pf = filters?.project_filter;
+          if (pf && pf !== 'all') {
+            if (pf === 'daily') {
+              query = query.is('project_id', null);
+            } else {
+              query = query.eq('project_id', pf);
+            }
+          }
+        }
+        return query;
+      };
 
-      if (!isAdmin && userId) {
-        query = query.eq('user_id', userId);
-      }
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters?.category) {
-        query = query.eq('category', filters.category);
-      }
-      if (filters?.employee_id) {
-        query = query.eq('user_id', filters.employee_id);
-      }
-      if (filters?.date_from) {
-        query = query.gte('receipt_date', filters.date_from);
-      }
-      if (filters?.date_to) {
-        query = query.lte('receipt_date', filters.date_to);
-      }
-      const supplierQ = filters?.supplier_search?.trim();
-      if (supplierQ) {
-        query = query.ilike('supplier', `%${supplierQ}%`);
+      const run = async (select: string, useProjectFilter: boolean) => {
+        let q = supabase.from('expenses').select(select).order('created_at', { ascending: false });
+        q = applyFilters(q, { useProjectFilter });
+        return q;
+      };
+
+      let rows: ExpenseRow[] | null = null;
+      let lastErr: unknown = null;
+
+      const attempts: { select: string; useProjectFilter: boolean }[] = [
+        { select: EXPENSE_SELECT_WITH_PROJECT, useProjectFilter: true },
+        { select: '*', useProjectFilter: true },
+        { select: '*', useProjectFilter: false },
+      ];
+
+      for (const att of attempts) {
+        const query = await run(att.select, att.useProjectFilter);
+        const { data, error } = await query;
+        if (!error) {
+          rows = (data ?? []) as unknown as ExpenseRow[];
+          if (att.select !== EXPENSE_SELECT_WITH_PROJECT || !att.useProjectFilter) {
+            console.warn(
+              '[useExpenses] Chargement des notes en mode compatibilité (sans liaison projet ou sans filtre projet). Vérifiez que la migration Supabase CRM est appliquée pour tout le fonctionnement.'
+            );
+          }
+          break;
+        }
+        lastErr = error;
+        if (!looksLikeProjectSchemaError(error)) {
+          throw error;
+        }
       }
 
-      const { data: rows, error } = await query;
-      if (error) throw error;
-      const list = rows ?? [];
+      if (rows === null) {
+        throw lastErr ?? new Error('FETCH_EXPENSES_FAILED');
+      }
+
+      const list = rows;
       const ids = [...new Set(list.map(r => r.user_id).filter(Boolean))] as string[];
 
       const profileById: Record<string, { full_name: string; email: string; id: string }> = {};
@@ -64,10 +132,11 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
 
       return list
         .map(row => {
-          const r = row as Expense & { city?: string | null };
+          const r = row as ExpenseRow & { city?: string | null };
           return {
             ...r,
             city: typeof r.city === 'string' ? r.city : '',
+            projects: r.projects ?? null,
             profiles: profileById[row.user_id]
               ? (profileById[row.user_id] as Expense['profiles'])
               : undefined,
@@ -106,18 +175,47 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     category: ExpenseCategory;
     description?: string;
     receipt_image_url?: string;
+    project_id?: string | null;
   }) => {
     if (!userId) return { error: new Error('Not authenticated') };
 
-    const { data, error } = await supabase.from('expenses').insert({
-      ...expense,
+    const base = {
+      receipt_date: expense.receipt_date,
+      supplier: expense.supplier,
+      city: expense.city,
+      amount_ht: expense.amount_ht,
+      amount_ttc: expense.amount_ttc,
+      vat_details: expense.vat_details,
+      category: expense.category,
+      description: expense.description,
+      receipt_image_url: expense.receipt_image_url,
       user_id: userId,
       accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],
       is_fiscal_alert: expense.amount_ttc > FISCAL_ALERT_THRESHOLD,
-    }).select().single();
+    };
 
-    if (!error) {
-      setExpenses(prev => [data as Expense, ...prev]);
+    const tryInsert = async (withProject: boolean, select: string) => {
+      const row = withProject
+        ? { ...base, project_id: expense.project_id ?? null }
+        : base;
+      return supabase.from('expenses').insert(row).select(select).single();
+    };
+
+    let { data, error } = await tryInsert(true, EXPENSE_SELECT_WITH_PROJECT);
+    if (error && looksLikeProjectSchemaError(error)) {
+      ({ data, error } = await tryInsert(false, '*'));
+    }
+
+    if (!error && data) {
+      const r = data as unknown as ExpenseRow;
+      setExpenses(prev => [
+        {
+          ...(r as Expense),
+          city: typeof r.city === 'string' ? r.city : '',
+          projects: r.projects ?? null,
+        },
+        ...prev,
+      ]);
     }
     return { data, error };
   };
@@ -159,10 +257,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
   };
 
   const deleteExpense = async (expenseId: string) => {
-    const { error } = await supabase
-      .from('expenses')
-      .delete()
-      .eq('id', expenseId);
+    const { error } = await supabase.from('expenses').delete().eq('id', expenseId);
 
     if (!error) {
       setExpenses(prev => prev.filter(e => e.id !== expenseId));
@@ -182,34 +277,55 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       category: ExpenseCategory;
       description?: string;
       receipt_image_url?: string;
+      project_id?: string | null;
     }
   ) => {
     if (!userId) return { error: new Error('Not authenticated') };
 
-    const { data, error } = await supabase
-      .from('expenses')
-      .update({
-        receipt_date: expense.receipt_date,
-        supplier: expense.supplier,
-        city: expense.city,
-        amount_ht: expense.amount_ht,
-        amount_ttc: expense.amount_ttc,
-        vat_details: expense.vat_details,
-        category: expense.category,
-        description: expense.description,
-        receipt_image_url: expense.receipt_image_url,
-        accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],
-        is_fiscal_alert: expense.amount_ttc > FISCAL_ALERT_THRESHOLD,
-      })
-      .eq('id', expenseId)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    const baseUpdate = {
+      receipt_date: expense.receipt_date,
+      supplier: expense.supplier,
+      city: expense.city,
+      amount_ht: expense.amount_ht,
+      amount_ttc: expense.amount_ttc,
+      vat_details: expense.vat_details,
+      category: expense.category,
+      description: expense.description,
+      receipt_image_url: expense.receipt_image_url,
+      accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],
+      is_fiscal_alert: expense.amount_ttc > FISCAL_ALERT_THRESHOLD,
+    };
+
+    const tryUpdate = async (withProject: boolean, select: string) => {
+      const patch = withProject
+        ? { ...baseUpdate, project_id: expense.project_id ?? null }
+        : baseUpdate;
+      return supabase
+        .from('expenses')
+        .update(patch)
+        .eq('id', expenseId)
+        .eq('user_id', userId)
+        .select(select)
+        .single();
+    };
+
+    let { data, error } = await tryUpdate(true, EXPENSE_SELECT_WITH_PROJECT);
+    if (error && looksLikeProjectSchemaError(error)) {
+      ({ data, error } = await tryUpdate(false, '*'));
+    }
 
     if (!error && data) {
+      const row = data as unknown as ExpenseRow;
       setExpenses(prev =>
         prev.map(e =>
-          e.id === expenseId ? { ...(data as Expense), profiles: e.profiles } : e
+          e.id === expenseId
+            ? {
+                ...(row as Expense),
+                city: typeof row.city === 'string' ? row.city : '',
+                projects: row.projects ?? null,
+                profiles: e.profiles,
+              }
+            : e
         )
       );
     }

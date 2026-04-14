@@ -8,9 +8,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 -- ENUM TYPES
 -- ============================================
-CREATE TYPE user_role AS ENUM ('employee', 'manager', 'finance');
+CREATE TYPE user_role AS ENUM ('employee', 'sales', 'manager', 'finance');
 CREATE TYPE expense_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE expense_category AS ENUM ('food', 'materials', 'travel', 'other');
+CREATE TYPE project_category AS ENUM (
+  'sorting_equipment',
+  'warehouse_equipment',
+  'low_voltage',
+  'office_renovation',
+  'procurement_equipment'
+);
+CREATE TYPE project_status AS ENUM (
+  'lead',
+  'quote',
+  'contract',
+  'delivery',
+  'lost'
+);
 
 -- ============================================
 -- PROFILES TABLE
@@ -54,6 +68,68 @@ CREATE POLICY "Managers can view all profiles"
   ON profiles FOR SELECT
   USING (public.current_profile_role() IN ('manager', 'finance'));
 
+-- Lecteurs authentifiés : profils référencés comme créateurs de projet (liste CRM)
+CREATE POLICY "Authenticated can read project creator profiles"
+  ON profiles FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects p
+      WHERE p.created_by = profiles.id
+    )
+  );
+
+-- ============================================
+-- PROJECTS (CRM)
+-- ============================================
+CREATE TABLE projects (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  category project_category NOT NULL,
+  status project_status NOT NULL DEFAULT 'lead',
+  scale TEXT NOT NULL DEFAULT '',
+  cycle TEXT NOT NULL DEFAULT '',
+  client_contact TEXT NOT NULL DEFAULT '',
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can view projects"
+  ON projects FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Sales and finance can insert projects"
+  ON projects FOR INSERT
+  TO authenticated
+  WITH CHECK (public.current_profile_role() IN ('sales', 'finance', 'manager'));
+
+CREATE POLICY "Creator or finance can update projects"
+  ON projects FOR UPDATE
+  TO authenticated
+  USING (
+    public.current_profile_role() = 'finance'
+    OR (created_by IS NOT NULL AND created_by = auth.uid())
+  )
+  WITH CHECK (
+    public.current_profile_role() = 'finance'
+    OR (created_by IS NOT NULL AND created_by = auth.uid())
+  );
+
+CREATE POLICY "Creator or finance can delete projects"
+  ON projects FOR DELETE
+  TO authenticated
+  USING (
+    public.current_profile_role() = 'finance'
+    OR (created_by IS NOT NULL AND created_by = auth.uid())
+  );
+
+CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
+
 -- ============================================
 -- EXPENSES TABLE
 -- ============================================
@@ -92,6 +168,9 @@ CREATE TABLE expenses (
   
   -- Fiscal alert
   is_fiscal_alert BOOLEAN DEFAULT FALSE,
+
+  -- Projet CRM (nullable = dépense « quotidien »)
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
   
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -138,6 +217,7 @@ CREATE INDEX idx_expenses_status ON expenses(status);
 CREATE INDEX idx_expenses_receipt_date ON expenses(receipt_date);
 CREATE INDEX idx_expenses_duplicate_hash ON expenses(duplicate_hash);
 CREATE INDEX idx_expenses_category ON expenses(category);
+CREATE INDEX idx_expenses_project_id ON expenses(project_id);
 
 -- ============================================
 -- FUNCTIONS
@@ -158,6 +238,10 @@ CREATE TRIGGER trigger_profiles_updated_at
 
 CREATE TRIGGER trigger_expenses_updated_at
   BEFORE UPDATE ON expenses
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trigger_projects_updated_at
+  BEFORE UPDATE ON projects
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Auto-create profile on signup
@@ -202,7 +286,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- Auto-compute duplicate hash and fiscal alert
+-- Auto-compute duplicate hash and fiscal alert (seuil = FISCAL_ALERT_THRESHOLD dans l’app, 500 €)
 CREATE OR REPLACE FUNCTION compute_expense_metadata()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -211,7 +295,7 @@ BEGIN
     LOWER(COALESCE(NEW.supplier, '')) ||
     COALESCE(NEW.amount_ttc::TEXT, '')
   );
-  NEW.is_fiscal_alert = (NEW.amount_ttc > 150);
+  NEW.is_fiscal_alert = (NEW.amount_ttc > 500);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

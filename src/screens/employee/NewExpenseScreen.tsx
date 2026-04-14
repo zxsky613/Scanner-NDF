@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,15 +16,17 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { Profile, Expense, ExpenseCategory, VatDetail } from '../../types';
 import { useExpenses } from '../../hooks/useExpenses';
+import { useProjects } from '../../hooks/useProjects';
 import { extractReceiptData } from '../../lib/aiExtraction';
 import { uploadReceiptImage } from '../../lib/storage';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
@@ -35,6 +37,7 @@ import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { IS_WEB, WEB_PAGE_GUTTER_CLASS, WEB_RIGHT_PANEL_W } from '../../config/webLayout';
+import { ZoomableReceiptImage } from '../../components/ZoomableReceiptImage';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -78,7 +81,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t } = useTranslation();
   const route = useRoute<RouteProp<NewExpenseRouteParams, 'NewExpense'>>();
   const editExpense = route.params?.editExpense;
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const { createExpense, updateExpense, checkDuplicate } = useExpenses(profile.id);
@@ -93,7 +96,6 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const [receiptImageError, setReceiptImageError] = useState(false);
   const [receiptMenuVisible, setReceiptMenuVisible] = useState(false);
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
-  const [receiptDisplayHeight, setReceiptDisplayHeight] = useState(360);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -110,12 +112,16 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   ]);
   const [category, setCategory] = useState<ExpenseCategory>('food');
   const [description, setDescription] = useState('');
+  /** null = option « Quotidien » (pas de projet en base). */
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const { projects, fetchProjects } = useProjects();
 
-  useEffect(() => {
-    if (receiptPreviewOpen) {
-      setReceiptDisplayHeight(windowWidth * 1.25);
-    }
-  }, [receiptPreviewOpen, windowWidth]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchProjects();
+    }, [fetchProjects])
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +164,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     setAmountHT(roundMoney(editExpense.amount_ht).toFixed(2));
     setAmountTTC(roundMoney(editExpense.amount_ttc).toFixed(2));
     setCategory(editExpense.category);
+    setProjectId(
+      editExpense.project_id && String(editExpense.project_id).trim()
+        ? String(editExpense.project_id)
+        : null
+    );
     setDescription(editExpense.description ?? '');
     setImageUri(editExpense.receipt_image_url ?? null);
     const vatAmt = roundMoney(Math.max(0, editExpense.amount_ttc - editExpense.amount_ht));
@@ -384,6 +395,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           category,
           description: description || undefined,
           receipt_image_url: receiptUrl,
+          project_id: projectId,
         });
 
         if (error) throw error;
@@ -410,6 +422,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           category,
           description: description || undefined,
           receipt_image_url: up,
+          project_id: projectId,
         });
 
         if (error) throw error;
@@ -663,6 +676,25 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             )}
           </View>
 
+          {/* Projet (web + mobile) */}
+          <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
+            <Text className="text-gray-900 font-bold text-base mb-2">{t('expense.project')}</Text>
+            <Text className="text-gray-500 text-xs mb-3 leading-4">{t('expense.selectProject')}</Text>
+            <TouchableOpacity
+              className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 flex-row items-center justify-between"
+              onPress={() => setProjectPickerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('expense.selectProject')}
+            >
+              <Text className="text-base text-gray-900 flex-1 pr-2" numberOfLines={2}>
+                {projectId
+                  ? projects.find(p => p.id === projectId)?.name ?? projectId
+                  : t('expense.projectDaily')}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={theme.inkMuted} />
+            </TouchableOpacity>
+          </View>
+
           {/* Category */}
           <View className="bg-white rounded-[22px] p-5 mb-6 border border-gray-100 shadow-sm">
             <Text className="text-gray-900 font-bold text-base mb-3">{t('expense.category')}</Text>
@@ -792,12 +824,14 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                         {t('employee.aiExtractionBadge')}
                       </Text>
                     </View>
-                    <Image
-                      source={{ uri: (receiptDisplayUri ?? imageUri) as string }}
-                      style={{ width: '100%', height: 200 }}
-                      resizeMode="cover"
-                      onError={() => setReceiptImageError(true)}
-                    />
+                    <GestureHandlerRootView style={{ width: '100%', height: 200 }}>
+                      <ZoomableReceiptImage
+                        uri={(receiptDisplayUri ?? imageUri) as string}
+                        width={WEB_RIGHT_PANEL_W - 32}
+                        height={200}
+                        onError={() => setReceiptImageError(true)}
+                      />
+                    </GestureHandlerRootView>
                   </>
                 ) : (
                   <View className="h-[200px] items-center justify-center px-4">
@@ -833,6 +867,14 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                   </Text>
                 </View>
 
+                <View className="mt-3">
+                  <Text className="text-[13px] font-medium text-gray-500">{t('expense.project')}</Text>
+                  <Text className="text-gray-900 font-medium mt-1">
+                    {projectId
+                      ? projects.find(p => p.id === projectId)?.name ?? '—'
+                      : t('expense.projectDaily')}
+                  </Text>
+                </View>
                 <View className="mt-3">
                   <Text className="text-[13px] font-medium text-gray-500">{t('expense.category')}</Text>
                   <Text className="text-gray-900 font-medium mt-1">{t(`expense.${category}`)}</Text>
@@ -911,33 +953,26 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               <Text className="text-sky-300 font-medium">{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView
-            className="flex-1"
-            contentContainerStyle={{
-              paddingBottom: Math.max(insets.bottom, 16) + 8,
-              alignItems: 'center',
-            }}
-            maximumZoomScale={4}
-            minimumZoomScale={1}
-            showsHorizontalScrollIndicator
-            showsVerticalScrollIndicator
-            centerContent={Platform.OS === 'ios'}
-            bouncesZoom
-          >
-            {receiptDisplayUri ?? imageUri ? (
-              <Image
-                source={{ uri: (receiptDisplayUri ?? imageUri) as string }}
-                style={{ width: windowWidth, height: receiptDisplayHeight }}
-                resizeMode="contain"
-                onLoad={e => {
-                  const s = e.nativeEvent.source;
-                  if (s?.width && s?.height && s.width > 0) {
-                    setReceiptDisplayHeight((s.height / s.width) * windowWidth);
-                  }
-                }}
-              />
-            ) : null}
-          </ScrollView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingBottom: Math.max(insets.bottom, 16) + 8,
+              }}
+            >
+              {receiptDisplayUri ?? imageUri ? (
+                <ZoomableReceiptImage
+                  key={(receiptDisplayUri ?? imageUri) as string}
+                  uri={(receiptDisplayUri ?? imageUri) as string}
+                  width={windowWidth}
+                  height={Math.min(Math.max(windowHeight * 0.78, 280), 900)}
+                  onError={() => setReceiptImageError(true)}
+                />
+              ) : null}
+            </View>
+          </GestureHandlerRootView>
         </View>
       </Modal>
 
@@ -1024,6 +1059,87 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               onPress={() => setReceiptMenuVisible(false)}
             >
               <Text className="text-[15px] font-semibold text-gray-700">{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={projectPickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProjectPickerOpen(false)}
+      >
+        <View
+          className="flex-1 justify-end"
+          style={
+            IS_WEB
+              ? { justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 }
+              : undefined
+          }
+        >
+          <Pressable
+            className="absolute inset-0 bg-black/40"
+            onPress={() => setProjectPickerOpen(false)}
+          />
+          <View
+            className="bg-white rounded-t-[28px] border-t border-gray-100 max-h-[85%]"
+            style={
+              IS_WEB
+                ? {
+                    borderRadius: 24,
+                    maxHeight: '80%',
+                    maxWidth: 480,
+                    width: '100%',
+                    alignSelf: 'center',
+                    borderTopWidth: 0,
+                    borderWidth: 1,
+                    borderColor: 'rgba(36, 41, 73, 0.08)',
+                  }
+                : undefined
+            }
+          >
+            <Text className="text-lg font-bold text-gray-900 px-5 pt-5 pb-2">{t('expense.project')}</Text>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+              <TouchableOpacity
+                className={`py-3.5 border-b border-gray-100 ${projectId === null ? 'bg-primary-50/60' : ''}`}
+                onPress={() => {
+                  setProjectId(null);
+                  setProjectPickerOpen(false);
+                }}
+              >
+                <Text
+                  className={`text-base ${projectId === null ? 'text-primary-700 font-bold' : 'text-gray-800'}`}
+                >
+                  {t('expense.projectDaily')}
+                </Text>
+              </TouchableOpacity>
+              {projects.map(p => (
+                <TouchableOpacity
+                  key={p.id}
+                  className={`py-3.5 border-b border-gray-100 ${projectId === p.id ? 'bg-primary-50/60' : ''}`}
+                  onPress={() => {
+                    setProjectId(p.id);
+                    setProjectPickerOpen(false);
+                  }}
+                >
+                  <Text
+                    className={`text-base ${projectId === p.id ? 'text-primary-700 font-bold' : 'text-gray-800'}`}
+                    numberOfLines={2}
+                  >
+                    {p.name}
+                  </Text>
+                  <Text className="text-xs text-gray-400 mt-0.5">
+                    {t(`crm.statuses.${p.status}`)} · {t(`crm.categories.${p.category}`)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              className="mx-5 mb-6 border border-gray-200 rounded-full py-3 items-center"
+              onPress={() => setProjectPickerOpen(false)}
+            >
+              <Text className="text-gray-700 font-semibold">{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>

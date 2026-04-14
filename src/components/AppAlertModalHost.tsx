@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Pressable,
   useWindowDimensions,
+  Platform,
+  type ViewStyle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { registerAppAlertHandler, AppAlertPayload, AppAlertButton } from '../utils/alert';
@@ -76,6 +78,12 @@ export const AppAlertModalHost: React.FC = () => {
 
   const buttons = payload.buttons?.length ? payload.buttons : null;
 
+  /** Au-dessus des autres Modals (ex. formulaire projet sur le web). */
+  const alertLayerStyle: ViewStyle | undefined =
+    Platform.OS === 'web'
+      ? { zIndex: 2147483646, position: 'relative' as const, flex: 1, width: '100%' as const }
+      : undefined;
+
   return (
     <Modal
       visible={visible}
@@ -84,16 +92,21 @@ export const AppAlertModalHost: React.FC = () => {
       statusBarTranslucent
       onRequestClose={dismissFromBackdrop}
     >
-      <View className="flex-1 justify-center items-center px-6">
+      <View className="flex-1 justify-center items-center px-6" style={alertLayerStyle}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('common.close')}
           className="absolute inset-0 bg-black/50"
           onPress={dismissFromBackdrop}
+          style={Platform.OS === 'web' ? { zIndex: 0 } : undefined}
         />
         <View
           className="bg-white rounded-[28px] p-7 border border-gray-100 shadow-lg"
-          style={{ width: cardMax, maxWidth: 400 }}
+          style={{
+            width: cardMax,
+            maxWidth: 400,
+            ...(Platform.OS === 'web' ? { zIndex: 2147483647, position: 'relative' as const } : {}),
+          }}
         >
           <Text className={`text-xl font-bold tracking-tight ${titleClass}`}>{payload.title}</Text>
           {payload.message ? (

@@ -71,7 +71,7 @@ Ajoutez ces policies au bucket `receipts` :
 - Formulaire de correction manuelle
 - Choix de catégorie (Nourriture, Matériaux, Déplacements)
 - Détection automatique des doublons
-- Alerte fiscale pour montants > 150€
+- Alerte fiscale pour montants > 500€
 
 ### Interface Gestionnaire (Accès restreint)
 - Tableau de bord global avec statistiques

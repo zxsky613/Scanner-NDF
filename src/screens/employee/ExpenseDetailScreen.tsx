@@ -12,6 +12,8 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,10 +24,13 @@ import { submitExpenseReview } from '../../lib/expenseReview';
 import { showAppAlert } from '../../utils/alert';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
+import { downloadReceiptFile, suggestReceiptFileName } from '../../lib/receiptDownload';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IS_WEB, WEB_PAGE_GUTTER_CLASS } from '../../config/webLayout';
+import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
+import { ZoomableReceiptImage } from '../../components/ZoomableReceiptImage';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -74,12 +79,14 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
       (async () => {
         const { data, error } = await supabase
           .from('expenses')
-          .select('*')
+          .select('*, projects(id, name)')
           .eq('id', id)
           .maybeSingle();
         if (cancelled || error || !data) return;
+        const row = data as Expense & { projects?: { id: string; name: string } | null };
         setExpenseRow(prev => ({
-          ...(data as Expense),
+          ...(row as Expense),
+          projects: row.projects ?? null,
           profiles: prev.profiles,
         }));
       })();
@@ -97,6 +104,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
   const [modalUri, setModalUri] = useState<string | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
 
   useEffect(() => {
     if (!expenseRow.receipt_image_url) {
@@ -149,8 +157,28 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
   };
 
   const hasReceipt = !!expenseRow.receipt_image_url?.trim();
+  const canDownloadReceipt =
+    hasReceipt && !!viewerProfile && isReviewerRole(viewerProfile.role);
 
   const modalImageMaxH = Math.min(windowH * 0.72, 720);
+
+  const handleDownloadReceipt = async () => {
+    const raw = expenseRow.receipt_image_url?.trim();
+    if (!raw) return;
+    setDownloadBusy(true);
+    try {
+      const name = suggestReceiptFileName(expenseRow.id, raw);
+      await downloadReceiptFile(raw, name);
+    } catch (e) {
+      const msg =
+        e instanceof Error && e.message === 'SHARE_UNAVAILABLE'
+          ? t('admin.exportShareUnavailable')
+          : t('admin.downloadReceiptError');
+      showAppAlert(t('common.error'), msg, 'error');
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -189,52 +217,74 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
           style={Platform.OS === 'web' ? ({ overflow: 'visible' } as const) : undefined}
         >
           {hasReceipt ? (
-            <Pressable
-              onPress={openReceiptModal}
-              accessibilityRole="button"
-              accessibilityLabel={t('expense.openOriginalReceipt')}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-              style={({ pressed }) => [
-                {
-                  width: '100%',
-                  opacity: pressed ? 0.9 : 1,
-                  minHeight: THUMB + 32,
-                },
-                Platform.OS === 'web' ? { cursor: 'pointer' } : null,
-              ]}
-            >
-              <View className="flex-row items-center p-4">
-                <View
-                  className="rounded-xl bg-gray-100 items-center justify-center border border-gray-200"
-                  style={{
-                    width: THUMB,
-                    height: THUMB,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {thumbLoading ? (
-                    <ActivityIndicator size="small" color={theme.brandPrimary} />
-                  ) : thumbUri ? (
-                    <Image
-                      source={{ uri: thumbUri }}
-                      style={{ width: THUMB, height: THUMB }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text className="text-3xl">📷</Text>
-                  )}
+            <>
+              <Pressable
+                onPress={openReceiptModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('expense.openOriginalReceipt')}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                style={({ pressed }) => [
+                  {
+                    width: '100%',
+                    opacity: pressed ? 0.9 : 1,
+                    minHeight: THUMB + 32,
+                  },
+                  Platform.OS === 'web' ? { cursor: 'pointer' } : null,
+                ]}
+              >
+                <View className="flex-row items-center p-4">
+                  <View
+                    className="rounded-xl bg-gray-100 items-center justify-center border border-gray-200"
+                    style={{
+                      width: THUMB,
+                      height: THUMB,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {thumbLoading ? (
+                      <ActivityIndicator size="small" color={theme.brandPrimary} />
+                    ) : thumbUri ? (
+                      <Image
+                        source={{ uri: thumbUri }}
+                        style={{ width: THUMB, height: THUMB }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-3xl">📷</Text>
+                    )}
+                  </View>
+                  <View className="flex-1 ml-3 min-w-0">
+                    <Text className="text-gray-900 font-semibold text-base">
+                      {t('expense.openOriginalReceipt')}
+                    </Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      {t('employee.receiptAttachedHint')}
+                    </Text>
+                  </View>
+                  <Text className="text-primary-600 text-xl font-medium pl-1">›</Text>
                 </View>
-                <View className="flex-1 ml-3 min-w-0">
-                  <Text className="text-gray-900 font-semibold text-base">
-                    {t('expense.openOriginalReceipt')}
-                  </Text>
-                  <Text className="text-gray-500 text-sm mt-1">
-                    {t('employee.receiptAttachedHint')}
-                  </Text>
+              </Pressable>
+              {canDownloadReceipt ? (
+                <View className="border-t border-gray-100 px-4 py-3 flex-row justify-end">
+                  <TouchableOpacity
+                    onPress={() => void handleDownloadReceipt()}
+                    disabled={downloadBusy}
+                    className="flex-row items-center gap-2 bg-primary-50 border border-primary-100 rounded-full px-4 py-2 active:opacity-90"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.downloadReceipt')}
+                  >
+                    {downloadBusy ? (
+                      <ActivityIndicator size="small" color={theme.brandPrimary} />
+                    ) : (
+                      <Ionicons name="download-outline" size={18} color={theme.brandPrimary} />
+                    )}
+                    <Text className="text-primary-700 font-semibold text-sm">
+                      {t('admin.downloadReceipt')}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <Text className="text-primary-600 text-xl font-medium pl-1">›</Text>
-              </View>
-            </Pressable>
+              ) : null}
+            </>
           ) : (
             <View className="flex-row items-center p-4 opacity-70">
               <View
@@ -269,6 +319,14 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
             label={t('expense.city')}
             value={expenseRow.city?.trim() ? expenseRow.city : '—'}
           />
+          <InfoRow
+            label={t('expense.project')}
+            value={
+              expenseRow.projects?.name?.trim()
+                ? expenseRow.projects.name
+                : t('expense.projectDaily')
+            }
+          />
           <InfoRow label={t('expense.category')} value={t(`expense.${expenseRow.category}`)} />
           {expenseRow.description && (
             <InfoRow label={t('expense.description')} value={expenseRow.description} />
@@ -301,7 +359,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
           <View className="bg-red-50 rounded-[22px] p-4 mb-4 border border-red-100">
             <Text className="text-red-800 font-bold">⚠️ {t('alerts.fiscalTitle')}</Text>
             <Text className="text-red-600 text-sm mt-1">
-              {t('alerts.fiscalMessage', { threshold: 150 })}
+              {t('alerts.fiscalMessage', { threshold: FISCAL_ALERT_THRESHOLD })}
             </Text>
           </View>
         )}
@@ -368,54 +426,70 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
         onRequestClose={closeReceiptModal}
       >
         <View className="flex-1 bg-black/95 pt-14">
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/10">
-            <Text className="text-white font-semibold text-base flex-1 pr-2">
+          <View className="flex-row items-center justify-between px-3 py-3 border-b border-white/10 gap-2">
+            <Text className="text-white font-semibold text-base flex-1 min-w-0 pr-1" numberOfLines={1}>
               {t('expense.receiptPreviewTitle')}
             </Text>
-            <TouchableOpacity
-              onPress={closeReceiptModal}
-              className="bg-white/15 rounded-full px-4 py-2"
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text className="text-white font-medium">{t('common.close')}</Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2 shrink-0">
+              {canDownloadReceipt && modalUri && !modalLoading && !modalError ? (
+                <TouchableOpacity
+                  onPress={() => void handleDownloadReceipt()}
+                  disabled={downloadBusy}
+                  className="bg-white/15 rounded-full px-3 py-2 flex-row items-center gap-1.5"
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('admin.downloadReceipt')}
+                >
+                  {downloadBusy ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Ionicons name="download-outline" size={18} color="#ffffff" />
+                  )}
+                  <Text className="text-white font-medium text-sm">{t('admin.downloadReceipt')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={closeReceiptModal}
+                className="bg-white/15 rounded-full px-4 py-2"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text className="text-white font-medium">{t('common.close')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <ScrollView
-            className="flex-1"
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              paddingVertical: 16,
-              paddingHorizontal: 8,
-            }}
-            showsVerticalScrollIndicator
-          >
-            {modalLoading && (
-              <View className="py-20">
-                <ActivityIndicator size="large" color="#ffffff" />
-                <Text className="text-white/80 text-center mt-4 text-sm">{t('common.loading')}</Text>
-              </View>
-            )}
-            {!modalLoading && modalUri && !modalError && (
-              <Image
-                source={{ uri: modalUri }}
-                style={{
-                  width: windowW - 16,
-                  height: modalImageMaxH,
-                  backgroundColor: '#1f2937',
-                }}
-                resizeMode="contain"
-                onError={() => setModalError(true)}
-              />
-            )}
-            {!modalLoading && modalError && (
-              <Text className="text-white/90 text-center px-6 py-10 text-base">
-                {t('expense.receiptLoadError')}
-              </Text>
-            )}
-          </ScrollView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingVertical: 16,
+                paddingHorizontal: 8,
+              }}
+            >
+              {modalLoading && (
+                <View className="py-20">
+                  <ActivityIndicator size="large" color="#ffffff" />
+                  <Text className="text-white/80 text-center mt-4 text-sm">{t('common.loading')}</Text>
+                </View>
+              )}
+              {!modalLoading && modalUri && !modalError && (
+                <ZoomableReceiptImage
+                  key={modalUri}
+                  uri={modalUri}
+                  width={windowW - 16}
+                  height={modalImageMaxH}
+                  onError={() => setModalError(true)}
+                />
+              )}
+              {!modalLoading && modalError && (
+                <Text className="text-white/90 text-center px-6 py-10 text-base">
+                  {t('expense.receiptLoadError')}
+                </Text>
+              )}
+            </View>
+          </GestureHandlerRootView>
         </View>
       </Modal>
 

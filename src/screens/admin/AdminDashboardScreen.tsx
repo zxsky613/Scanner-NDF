@@ -23,8 +23,10 @@ import {
   ExpenseStatus,
   ExpenseCategory,
   ExpenseFilters,
+  ExpenseProjectFilter,
 } from '../../types';
 import { useExpenses } from '../../hooks/useExpenses';
+import { useProjects } from '../../hooks/useProjects';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { exportToExcel } from '../../utils/excelExport';
 import { buildPeriodMarkings } from '../../utils/calendarRange';
@@ -36,6 +38,7 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../i18n';
 import { showAppAlert } from '../../utils/alert';
+import { useNotificationsContext } from '../../context/NotificationsContext';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import {
   IS_WEB,
@@ -75,6 +78,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const { expenses, refreshing, fetchExpenses, fetchExpensesSnapshot, updateExpenseStatus } =
     useExpenses(profile.id, true);
+  const { projects: crmProjects, fetchProjects: fetchCrmProjects } = useProjects();
+  const { syncInBackground: syncNotificationsAndPendingBadge } = useNotificationsContext();
 
   const [employees, setEmployees] = useState<Profile[]>([]);
   const [filters, setFilters] = useState<ExpenseFilters>({});
@@ -107,6 +112,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const [pendingSectionExpanded, setPendingSectionExpanded] = useState(true);
   const [processedSectionExpanded, setProcessedSectionExpanded] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState<ExpenseProjectFilter>('all');
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
 
   const adminFiltersActive = useMemo(() => {
     const f = filters;
@@ -116,7 +123,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       f.employee_id ||
       f.date_from ||
       f.date_to ||
-      (f.supplier_search && f.supplier_search.trim())
+      (f.supplier_search && f.supplier_search.trim()) ||
+      (f.project_filter && f.project_filter !== 'all')
     );
   }, [filters]);
 
@@ -163,6 +171,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
 
   const openDateRangeInSheet = useCallback(() => {
     setEmployeePickerOpen(false);
+    setProjectPickerOpen(false);
     if (dateFrom) {
       setDatePick({
         start: dateFrom,
@@ -309,7 +318,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   useFocusEffect(
     useCallback(() => {
       fetchExpenses(filters);
-    }, [fetchExpenses, filters])
+      void syncNotificationsAndPendingBadge();
+    }, [fetchExpenses, filters, syncNotificationsAndPendingBadge])
   );
 
   const applyFilters = () => {
@@ -319,8 +329,10 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     if (selectedEmployee) newFilters.employee_id = selectedEmployee;
     if (dateFrom) newFilters.date_from = dateFrom;
     if (dateTo) newFilters.date_to = dateTo;
+    if (selectedProjectFilter !== 'all') newFilters.project_filter = selectedProjectFilter;
     setFilters(newFilters);
     setEmployeePickerOpen(false);
+    setProjectPickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
@@ -329,16 +341,19 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     setSelectedStatus('all');
     setSelectedCategory('all');
     setSelectedEmployee(undefined);
+    setSelectedProjectFilter('all');
     setDateFrom('');
     setDateTo('');
     setFilters({});
     setEmployeePickerOpen(false);
+    setProjectPickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
 
   const closeFilterModal = () => {
     setEmployeePickerOpen(false);
+    setProjectPickerOpen(false);
     setFilterSheetView('main');
     setShowFilterModal(false);
   };
@@ -346,6 +361,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const handleApprove = async (expenseId: string) => {
     const { error } = await updateExpenseStatus(expenseId, 'approved', profile.id);
     if (error) showAppAlert(t('common.error'), error.message, 'error');
+    else void syncNotificationsAndPendingBadge();
   };
 
   const handleReject = async () => {
@@ -357,6 +373,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       rejectionReason
     );
     if (error) showAppAlert(t('common.error'), error.message, 'error');
+    else void syncNotificationsAndPendingBadge();
     setRejectModal(null);
     setRejectionReason('');
   };
@@ -415,6 +432,10 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
             </Text>
             <Text className="text-gray-500 text-sm mt-0.5">
               {(item.profiles as Profile | undefined)?.full_name ?? '—'}
+            </Text>
+            <Text className="text-gray-400 text-[11px] mt-0.5" numberOfLines={1}>
+              {t('expense.project')}:{' '}
+              {item.projects?.name?.trim() ? item.projects.name : t('expense.projectDaily')}
             </Text>
             <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={IS_WEB ? 1 : 2}>
               {item.supplier}
@@ -582,7 +603,9 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                     }}
                     onPress={() => {
                       setFilterSheetView('main');
+                      setSelectedProjectFilter(filters.project_filter ?? 'all');
                       void loadEmployeesWithExpenses();
+                      void fetchCrmProjects();
                       setShowFilterModal(true);
                     }}
                   >
@@ -674,7 +697,9 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
             }}
             onPress={() => {
               setFilterSheetView('main');
+              setSelectedProjectFilter(filters.project_filter ?? 'all');
               void loadEmployeesWithExpenses();
+              void fetchCrmProjects();
               setShowFilterModal(true);
             }}
           >
@@ -824,6 +849,55 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                   ))}
                 </View>
 
+                <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByProject')}</Text>
+                <Text className="text-gray-500 text-xs mb-2 leading-4">{t('admin.filterProjectHint')}</Text>
+                <View className="flex-row items-stretch gap-2 mb-4">
+                  <TouchableOpacity
+                    className={`px-4 py-3 rounded-xl border justify-center ${
+                      selectedProjectFilter === 'all'
+                        ? 'bg-primary-600 border-primary-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                    onPress={() => setSelectedProjectFilter('all')}
+                  >
+                    <Text
+                      className={`text-sm font-medium ${
+                        selectedProjectFilter === 'all' ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {t('common.all')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`flex-1 min-w-0 flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                      selectedProjectFilter !== 'all'
+                        ? 'border-primary-300 bg-primary-50/50'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                    onPress={() => {
+                      setEmployeePickerOpen(false);
+                      setProjectPickerOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.selectProjectPlaceholder')}
+                  >
+                    <Text
+                      className={`text-sm font-medium flex-1 pr-2 ${
+                        selectedProjectFilter !== 'all' ? 'text-gray-900' : 'text-gray-400'
+                      }`}
+                      numberOfLines={1}
+                    >
+                      {selectedProjectFilter === 'all'
+                        ? t('admin.selectProjectPlaceholder')
+                        : selectedProjectFilter === 'daily'
+                          ? t('expense.projectDaily')
+                          : crmProjects.find(pr => pr.id === selectedProjectFilter)?.name ??
+                            selectedProjectFilter}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={theme.inkMuted} />
+                  </TouchableOpacity>
+                </View>
+
                 <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByEmployee')}</Text>
                 <Text className="text-gray-500 text-xs mb-2 leading-4">{t('admin.filterEmployeeHint')}</Text>
                 <View className="flex-row items-stretch gap-2 mb-4">
@@ -847,7 +921,12 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                     className={`flex-1 min-w-0 flex-row items-center justify-between px-4 py-3 rounded-xl border ${
                       selectedEmployee ? 'border-primary-300 bg-primary-50/50' : 'border-gray-200 bg-gray-50'
                     }`}
-                    onPress={() => employees.length > 0 && setEmployeePickerOpen(true)}
+                    onPress={() => {
+                      if (employees.length > 0) {
+                        setProjectPickerOpen(false);
+                        setEmployeePickerOpen(true);
+                      }
+                    }}
                     disabled={employees.length === 0}
                     accessibilityRole="button"
                     accessibilityLabel={t('admin.selectEmployeePlaceholder')}
@@ -1028,6 +1107,84 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                         </TouchableOpacity>
                       ))
                     )}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
+            {projectPickerOpen && filterSheetView === 'main' ? (
+              <View
+                className="justify-end"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  zIndex: 100,
+                }}
+                pointerEvents="box-none"
+              >
+                <Pressable
+                  className="flex-1 bg-black/40"
+                  onPress={() => setProjectPickerOpen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                />
+                <View className="bg-white rounded-t-[24px] border-t border-gray-200 px-4 pt-4 pb-5 shadow-lg">
+                  <Text className="text-ink font-bold text-base mb-1">{t('admin.filterByProject')}</Text>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 320 }}
+                    nestedScrollEnabled
+                  >
+                    <TouchableOpacity
+                      className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                      onPress={() => {
+                        setSelectedProjectFilter('daily');
+                        setProjectPickerOpen(false);
+                      }}
+                    >
+                      <Text
+                        className={`text-base ${
+                          selectedProjectFilter === 'daily'
+                            ? 'font-bold'
+                            : 'font-medium text-gray-900'
+                        }`}
+                        style={
+                          selectedProjectFilter === 'daily'
+                            ? { color: theme.brandPrimary }
+                            : undefined
+                        }
+                      >
+                        {t('expense.projectDaily')}
+                      </Text>
+                    </TouchableOpacity>
+                    {crmProjects.map(pr => (
+                      <TouchableOpacity
+                        key={pr.id}
+                        className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setSelectedProjectFilter(pr.id);
+                          setProjectPickerOpen(false);
+                        }}
+                      >
+                        <Text
+                          className={`text-base ${
+                            selectedProjectFilter === pr.id
+                              ? 'font-bold'
+                              : 'font-medium text-gray-900'
+                          }`}
+                          style={
+                            selectedProjectFilter === pr.id
+                              ? { color: theme.brandPrimary }
+                              : undefined
+                          }
+                          numberOfLines={2}
+                        >
+                          {pr.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </ScrollView>
                 </View>
               </View>

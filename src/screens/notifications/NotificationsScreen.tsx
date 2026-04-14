@@ -15,7 +15,7 @@ import { Expense, NotificationType, AppNotification } from '../../types';
 import { supabase } from '../../config/supabase';
 import { formatDate } from '../../utils/dateFormat';
 import { useNotificationsContext } from '../../context/NotificationsContext';
-import { showAppAlert } from '../../utils/alert';
+import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { getLocalizedNotification } from '../../utils/notificationDisplay';
 import { notificationNeedsAttention } from '../../utils/notificationAttention';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
@@ -91,9 +91,8 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     syncInBackground,
     markRead,
     markAllRead,
+    deleteNotification,
     unreadCount,
-    expenseStatusById,
-    viewerIsReviewer,
   } = useNotificationsContext();
   const [treatedExpanded, setTreatedExpanded] = useState(false);
 
@@ -104,12 +103,8 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   const listRows = useMemo((): ListRow[] => {
-    const untreated = notifications
-      .filter(n => notificationNeedsAttention(n, expenseStatusById, viewerIsReviewer))
-      .sort(sortByNewest);
-    const treated = notifications
-      .filter(n => !notificationNeedsAttention(n, expenseStatusById, viewerIsReviewer))
-      .sort(sortByNewest);
+    const untreated = notifications.filter(n => notificationNeedsAttention(n)).sort(sortByNewest);
+    const treated = notifications.filter(n => !notificationNeedsAttention(n)).sort(sortByNewest);
     const rows: ListRow[] = [];
     rows.push({ kind: 'header', section: 'unread', count: untreated.length });
     untreated.forEach(item => rows.push({ kind: 'notif', item }));
@@ -120,7 +115,19 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
       }
     }
     return rows;
-  }, [notifications, expenseStatusById, viewerIsReviewer, treatedExpanded]);
+  }, [notifications, treatedExpanded]);
+
+  const onDeletePress = async (n: AppNotification) => {
+    const ok = await showAppConfirm(
+      t('notifications.deleteTitle'),
+      t('notifications.deleteMessage'),
+      t('common.cancel'),
+      t('common.delete'),
+      { destructive: true }
+    );
+    if (!ok) return;
+    await deleteNotification(n.id);
+  };
 
   const onPressNotification = async (id: string, expenseId: string | null) => {
     await markRead(id);
@@ -171,9 +178,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
             <ScreenHeroTitle className={IS_WEB ? 'mt-1' : 'mt-2'}>{t('notifications.title')}</ScreenHeroTitle>
             <Text className={IS_WEB ? 'text-gray-500 mt-1 text-sm leading-5' : 'text-gray-400 mt-2 text-base'}>
               {unreadCount > 0
-                ? viewerIsReviewer
-                  ? t('notifications.reviewerAttentionLine', { count: unreadCount })
-                  : t('notifications.unreadLine', { count: unreadCount })
+                ? t('notifications.unreadLine', { count: unreadCount })
                 : t('notifications.allCaughtUp')}
             </Text>
           </View>
@@ -241,44 +246,57 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     const n = item.item;
-    const needsAttention = notificationNeedsAttention(n, expenseStatusById, viewerIsReviewer);
+    const needsAttention = notificationNeedsAttention(n);
     const vis = notificationVisual[n.type] ?? { icon: '🔔', iconBg: 'bg-gray-100' };
     const { title: dispTitle, body: dispBody } = getLocalizedNotification(n, t);
     return (
-      <TouchableOpacity
-        className={`${cardX} mb-3 p-4 rounded-[22px] bg-white border shadow-sm overflow-hidden flex-row items-center ${
+      <View
+        className={`${cardX} mb-3 rounded-[22px] bg-white border shadow-sm overflow-hidden flex-row items-center ${
           needsAttention ? 'border-primary-200' : 'border-gray-100/90'
         }`}
-        activeOpacity={0.88}
-        onPress={() => void onPressNotification(n.id, n.expense_id)}
       >
-        <View
-          className={`w-14 h-14 rounded-2xl items-center justify-center border border-gray-100 ${vis.iconBg}`}
+        <TouchableOpacity
+          className="flex-1 flex-row items-center p-4 min-w-0"
+          activeOpacity={0.88}
+          onPress={() => void onPressNotification(n.id, n.expense_id)}
         >
-          <Text className="text-2xl">{vis.icon}</Text>
-        </View>
-        <View className="flex-1 min-w-0 ml-3">
-          <View className="flex-row items-center gap-2">
-            <Text
-              className={`text-base flex-1 ${needsAttention ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}
-              numberOfLines={1}
-            >
-              {dispTitle}
-            </Text>
-            {needsAttention ? <View className="w-2 h-2 rounded-full bg-primary-600" /> : null}
+          <View
+            className={`w-14 h-14 rounded-2xl items-center justify-center border border-gray-100 ${vis.iconBg}`}
+          >
+            <Text className="text-2xl">{vis.icon}</Text>
           </View>
-          {dispBody ? (
-            <Text className="text-gray-400 text-sm mt-0.5 leading-5" numberOfLines={2}>
-              {dispBody}
+          <View className="flex-1 min-w-0 ml-3">
+            <View className="flex-row items-center gap-2">
+              <Text
+                className={`text-base flex-1 ${needsAttention ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}
+                numberOfLines={1}
+              >
+                {dispTitle}
+              </Text>
+              {needsAttention ? <View className="w-2 h-2 rounded-full bg-primary-600" /> : null}
+            </View>
+            {dispBody ? (
+              <Text className="text-gray-400 text-sm mt-0.5 leading-5" numberOfLines={2}>
+                {dispBody}
+              </Text>
+            ) : null}
+            <Text className="text-gray-300 text-[11px] font-medium mt-1">
+              {formatDate(n.created_at)}
+              {n.expense_id ? ` · ${t('notifications.tapToOpen')}` : ''}
             </Text>
-          ) : null}
-          <Text className="text-gray-300 text-[11px] font-medium mt-1">
-            {formatDate(n.created_at)}
-            {n.expense_id ? ` · ${t('notifications.tapToOpen')}` : ''}
-          </Text>
-        </View>
-        <Text className="text-primary-600 text-lg font-medium pl-1">›</Text>
-      </TouchableOpacity>
+          </View>
+          <Text className="text-primary-600 text-lg font-medium pl-1">›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="pr-4 py-4 pl-1"
+          onPress={() => void onDeletePress(n)}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.delete')}
+        >
+          <Ionicons name="trash-outline" size={22} color="#9ca3af" />
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -305,8 +323,6 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
           extraData={{
             i18n: i18n.language,
             treatedExpanded,
-            expenseStatusById,
-            viewerIsReviewer,
           }}
           keyExtractor={(row, index) =>
             row.kind === 'header' ? `h-${row.section}` : `n-${row.item.id}-${index}`

@@ -1,4 +1,5 @@
-export const FISCAL_ALERT_THRESHOLD = 150;
+/** Seuil TTC au-delà duquel l’alerte fiscale s’affiche (aligner avec le trigger Supabase `compute_expense_metadata`). */
+export const FISCAL_ALERT_THRESHOLD = 500;
 export const STORAGE_BUCKET = 'receipts';
 
 export const AI_API_URL = 'https://api.groq.com/openai/v1/chat/completions';

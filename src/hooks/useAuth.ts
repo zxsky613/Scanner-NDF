@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
 import { getSignupEmailRedirectTo, handleSupabaseAuthDeepLink } from '../lib/authDeepLink';
 import { Profile, UserRole } from '../types';
+import { hasCrmAccess, hasExpenseManagementAccess } from '../lib/roles';
 import type { Session } from '@supabase/supabase-js';
 
 const AUTH_TIMEOUT_MS = 30_000;
@@ -164,9 +165,11 @@ export const useAuth = () => {
     setState({ session: null, profile: null, loading: false });
   };
 
-  /** Accès complet (Finance ou anciens comptes « manager » en base). */
-  const isAdmin =
-    state.profile?.role === 'finance' || state.profile?.role === 'manager';
+  /** Suivi / validation des notes (Finance ou anciens « manager »). */
+  const isAdmin = hasExpenseManagementAccess(state.profile?.role);
+
+  /** CRM & Projets (commercial, finance, manager legacy). */
+  const isCrmAccess = hasCrmAccess(state.profile?.role);
 
   return {
     ...state,
@@ -174,6 +177,7 @@ export const useAuth = () => {
     signUp,
     signOut,
     isAdmin,
+    isCrmAccess,
     refreshProfile: async () => {
       if (state.session?.user) {
         const profile = await fetchProfile(state.session.user.id);

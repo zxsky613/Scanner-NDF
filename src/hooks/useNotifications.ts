@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../config/supabase';
-import type { AppNotification, ExpenseStatus } from '../types';
+import type { AppNotification } from '../types';
 import { notificationNeedsAttention } from '../utils/notificationAttention';
 
 const POLL_MS = 25_000;
@@ -15,21 +15,23 @@ function isNotificationsTableMissing(error: { code?: string; message?: string } 
 
 export interface UseNotificationsResult {
   notifications: AppNotification[];
-  /** Statuts courants des dépenses liées (pour file d’attente validateur). */
-  expenseStatusById: Record<string, ExpenseStatus>;
-  /** Profil finance ou manager : règles « non traité » basées sur le statut de la note. */
-  viewerIsReviewer: boolean;
   /** Premier chargement (liste vide, écran plein). */
   loading: boolean;
   /** Tirer pour actualiser uniquement — ne pas lier au focus / polling. */
   refreshing: boolean;
-  /** Nombre d’alertes « à traiter » (non traitées), dont notes pending pour les validateurs. */
+  /** Notifications non lues (`read_at` vide). */
   unreadCount: number;
+  /**
+   * Nombre de notes en attente de validation (finance / manager), pour le badge onglet Suivi.
+   * 0 si l’utilisateur n’est pas validateur.
+   */
+  pendingExpenseCount: number;
   refresh: () => Promise<void>;
   /** Mise à jour en arrière-plan (onglet actif, polling) : pas d’indicateur. */
   syncInBackground: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
 }
 
 export function useNotifications(
@@ -38,7 +40,7 @@ export function useNotifications(
 ): UseNotificationsResult {
   const viewerIsReviewer = options?.viewerIsReviewer === true;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [expenseStatusById, setExpenseStatusById] = useState<Record<string, ExpenseStatus>>({});
+  const [pendingExpenseCount, setPendingExpenseCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -54,37 +56,27 @@ export function useNotifications(
       if (error) {
         if (isNotificationsTableMissing(error)) {
           setNotifications([]);
-          setExpenseStatusById({});
+          setPendingExpenseCount(0);
           return;
         }
         throw error;
       }
-      const notifs = (data ?? []) as AppNotification[];
-      const ids = [
-        ...new Set(
-          notifs
-            .filter(
-              n =>
-                n.expense_id &&
-                (n.type === 'expense_created' || n.type === 'expense_updated')
-            )
-            .map(n => n.expense_id as string)
-        ),
-      ];
-      let statusMap: Record<string, ExpenseStatus> = {};
-      if (ids.length > 0) {
-        const { data: rows, error: errRows } = await supabase
+      setNotifications((data ?? []) as AppNotification[]);
+
+      if (viewerIsReviewer) {
+        const { count, error: countErr } = await supabase
           .from('expenses')
-          .select('id, status')
-          .in('id', ids);
-        if (!errRows && rows) {
-          for (const r of rows) {
-            statusMap[r.id] = r.status as ExpenseStatus;
-          }
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        if (countErr) {
+          if (__DEV__) console.warn('pending expense count:', countErr);
+          setPendingExpenseCount(0);
+        } else {
+          setPendingExpenseCount(count ?? 0);
         }
+      } else {
+        setPendingExpenseCount(0);
       }
-      setExpenseStatusById(statusMap);
-      setNotifications(notifs);
     } catch (e) {
       if (
         e &&
@@ -93,19 +85,16 @@ export function useNotifications(
         isNotificationsTableMissing(e as { code?: string; message?: string })
       ) {
         setNotifications([]);
-        setExpenseStatusById({});
+        setPendingExpenseCount(0);
       } else if (__DEV__) {
         console.warn('notifications fetch:', e);
       }
     }
-  }, [userId]);
+  }, [userId, viewerIsReviewer]);
 
   const unreadCount = useMemo(
-    () =>
-      notifications.filter(n =>
-        notificationNeedsAttention(n, expenseStatusById, viewerIsReviewer)
-      ).length,
-    [notifications, expenseStatusById, viewerIsReviewer]
+    () => notifications.filter(n => notificationNeedsAttention(n)).length,
+    [notifications]
   );
 
   const syncInBackground = useCallback(async () => {
@@ -175,16 +164,28 @@ export function useNotifications(
     }
   }, [userId]);
 
+  const deleteNotification = useCallback(
+    async (id: string) => {
+      if (!userId) return;
+      const { error } = await supabase.from('notifications').delete().eq('id', id).eq('user_id', userId);
+      if (error && isNotificationsTableMissing(error)) return;
+      if (!error) {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }
+    },
+    [userId]
+  );
+
   return {
     notifications,
-    expenseStatusById,
-    viewerIsReviewer,
     loading,
     refreshing,
     unreadCount,
+    pendingExpenseCount,
     refresh,
     syncInBackground,
     markRead,
     markAllRead,
+    deleteNotification,
   };
 }
