@@ -45,6 +45,14 @@ export interface Project {
   scale: string;
   cycle: string;
   client_contact: string;
+  /** Montant devis / contrat (€). */
+  contract_amount?: number | null;
+  /** Conditions de paiement (saisie Finance). */
+  payment_terms?: string | null;
+  /** Coûts fixes pour marge (€), saisis Finance. */
+  cost_labor?: number | null;
+  cost_rent?: number | null;
+  cost_materials?: number | null;
   created_by?: string | null;
   /** Alias PostgREST : `creator:profiles!…` */
   creator?: ProjectCreator | null;

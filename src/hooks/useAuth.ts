@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
 import { getSignupEmailRedirectTo, handleSupabaseAuthDeepLink } from '../lib/authDeepLink';
 import { Profile, UserRole } from '../types';
-import { hasCrmAccess, hasExpenseManagementAccess } from '../lib/roles';
+import { hasCrmAccess, hasExpenseManagementAccess, hasFinanceTabAccess } from '../lib/roles';
 import type { Session } from '@supabase/supabase-js';
 
 const AUTH_TIMEOUT_MS = 30_000;
@@ -171,6 +171,9 @@ export const useAuth = () => {
   /** CRM & Projets (commercial, finance, manager legacy). */
   const isCrmAccess = hasCrmAccess(state.profile?.role);
 
+  /** Onglet Finance dédié (rôle finance uniquement). */
+  const isFinanceTabAccess = hasFinanceTabAccess(state.profile?.role);
+
   return {
     ...state,
     signIn,
@@ -178,6 +181,7 @@ export const useAuth = () => {
     signOut,
     isAdmin,
     isCrmAccess,
+    isFinanceTabAccess,
     refreshProfile: async () => {
       if (state.session?.user) {
         const profile = await fetchProfile(state.session.user.id);

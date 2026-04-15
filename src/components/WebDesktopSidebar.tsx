@@ -17,6 +17,7 @@ const ROUTE_ICONS: Partial<Record<string, TabIconName>> = {
   ExpensesTab: 'clipboard-text-outline',
   AdminTab: 'view-dashboard-outline',
   CrmTab: 'briefcase-outline',
+  FinanceTab: 'chart-line',
   NotificationsTab: 'bell-outline',
   SettingsTab: 'cog-outline',
 };

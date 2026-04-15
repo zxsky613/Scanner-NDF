@@ -32,6 +32,7 @@ import { uploadReceiptImage } from '../../lib/storage';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
 import { formatCurrency, maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
+import { formatAmountThousandsSpaces, formatMoneyInputInitial } from '../../utils/formatAmountInput';
 import { parseMoney, roundMoney } from '../../utils/money';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
@@ -161,8 +162,8 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     setReceiptDateInput(isoToDmyInput(editExpense.receipt_date));
     setSupplier(editExpense.supplier);
     setCity(editExpense.city?.trim() ? editExpense.city : '');
-    setAmountHT(roundMoney(editExpense.amount_ht).toFixed(2));
-    setAmountTTC(roundMoney(editExpense.amount_ttc).toFixed(2));
+    setAmountHT(formatMoneyInputInitial(roundMoney(editExpense.amount_ht)));
+    setAmountTTC(formatMoneyInputInitial(roundMoney(editExpense.amount_ttc)));
     setCategory(editExpense.category);
     setProjectId(
       editExpense.project_id && String(editExpense.project_id).trim()
@@ -234,8 +235,8 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       if (data.city?.trim()) setCity(data.city.trim());
       const ht = roundMoney(data.amount_ht);
       const ttc = roundMoney(data.amount_ttc);
-      setAmountHT(ht.toFixed(2));
-      setAmountTTC(ttc.toFixed(2));
+      setAmountHT(formatMoneyInputInitial(ht));
+      setAmountTTC(formatMoneyInputInitial(ttc));
       const vatAmt = roundMoney(Math.max(0, ttc - ht));
       const rate =
         ht > 0.001 ? roundMoney((100 * vatAmt) / ht) : data.vat_details[0]?.rate > 0
@@ -286,11 +287,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   }, [amountHT, amountTTC]);
 
   const onAmountHTChange = (text: string) => {
-    setAmountHT(text);
+    setAmountHT(formatAmountThousandsSpaces(text));
   };
 
   const onAmountTTCChange = (text: string) => {
-    setAmountTTC(text);
+    setAmountTTC(formatAmountThousandsSpaces(text));
   };
 
   const handleSubmit = async () => {

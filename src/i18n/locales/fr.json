@@ -25,6 +25,7 @@
     "expenses": "Notes",
     "admin": "Suivi",
     "crm": "Projet",
+    "finance": "Finance",
     "notifications": "Alertes",
     "settings": "Réglages"
   },
@@ -91,7 +92,37 @@
       "contract": "Contrat",
       "delivery": "Livraison",
       "lost": "Perdu"
-    }
+    },
+    "contractAmountTitle": "Montant du devis / contrat",
+    "contractAmountLabel": "Montant (€)",
+    "contractAmountHintStatus": "Projet « {{name}} » — passage à : {{status}}. Saisissez le montant.",
+    "contractAmountHintForm": "Statut Devis ou phase suivante : le montant est obligatoire.",
+    "contractAmountFormHint": "Obligatoire pour Devis, Contrat ou Livraison. Modifiable à tout moment tant que le projet reste à ce stade ou au-delà.",
+    "contractAmountPlaceholder": "Ex. 12500 ou 12500,50",
+    "contractAmountInvalid": "Indiquez un montant valide (nombre positif ou zéro).",
+    "contractAmountSaved": "Montant enregistré avec le nouveau statut."
+  },
+  "finance": {
+    "title": "Finance projets",
+    "subtitle": "Montants signés, conditions de paiement, coûts fixes et marge nette (notes approuvées = validées).",
+    "listSummary": "{{count}} projet(s) — tri par nom. Touchez un projet pour saisir ou modifier la fiche finance.",
+    "detailModalTitle": "Fiche finance",
+    "backToList": "Retour à la liste des projets",
+    "openProjectFinance": "Ouvrir la finance du projet {{name}}",
+    "contractAmountShort": "Devis",
+    "empty": "Aucun projet.",
+    "contractAmount": "Montant devis / contrat (€)",
+    "paymentTerms": "Conditions de paiement",
+    "paymentTermsPlaceholder": "Ex. : 30 % à la commande, solde à la livraison…",
+    "fixedCostsHint": "Coûts fixes (saisie Finance) — utilisés pour la marge nette.",
+    "costLabor": "Main-d'œuvre (€)",
+    "costRent": "Location (€)",
+    "costMaterials": "Matériaux (€)",
+    "validatedExpensesSum": "Total notes validées (TTC)",
+    "approvedMeansValidated": "Uniquement les notes au statut « Approuvé » (équivalent validé).",
+    "netMargin": "Marge nette",
+    "amountInvalid": "Montant invalide.",
+    "saveSuccess": "Données financières enregistrées."
   },
   "errors": {
     "storageImageRead": "Impossible de lire l’image (code {{status}}).",

@@ -90,6 +90,12 @@ CREATE TABLE projects (
   scale TEXT NOT NULL DEFAULT '',
   cycle TEXT NOT NULL DEFAULT '',
   client_contact TEXT NOT NULL DEFAULT '',
+  -- Finance / marge (bases existantes : migration_project_finance_fields.sql)
+  contract_amount NUMERIC(14, 2),
+  payment_terms TEXT NOT NULL DEFAULT '',
+  cost_labor NUMERIC(14, 2),
+  cost_rent NUMERIC(14, 2),
+  cost_materials NUMERIC(14, 2),
   created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

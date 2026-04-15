@@ -30,6 +30,7 @@ import {
 } from '../../types';
 import { useProjects, type NewProjectInput } from '../../hooks/useProjects';
 import { canManageProject } from '../../lib/roles';
+import { projectStatusRequiresContractAmount, salesShouldPromptContractAmount } from '../../lib/projectFinance';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
@@ -45,8 +46,16 @@ import { AppNameText } from '../../components/AppNameText';
 import { formatDate } from '../../utils/dateFormat';
 import { buildPeriodMarkings } from '../../utils/calendarRange';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
+import {
+  formatAmountThousandsFromNumber,
+  formatAmountThousandsSpaces,
+  parseLocaleAmount,
+} from '../../utils/formatAmountInput';
 
 type CrmProjectSort = 'created_desc' | 'owner_asc' | 'status_pipeline';
+
+/** Flux Sales : popup uniquement pour changement de statut depuis la liste (pas depuis le formulaire). */
+type SalesContractFlowState = { kind: 'status'; project: Project; newStatus: ProjectStatus };
 
 const SWIPE_ACTION_W = 56;
 const SWIPE_ICON_SIZE = 24;
@@ -81,6 +90,7 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     createProject,
     updateProject,
     updateProjectStatus,
+    updateProjectStatusAndContractAmount,
     deleteProject,
   } = useProjects();
 
@@ -90,6 +100,10 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
   const [saving, setSaving] = useState(false);
   const [statusModalProject, setStatusModalProject] = useState<Project | null>(null);
   const [detailProject, setDetailProject] = useState<Project | null>(null);
+  const [salesContractFlow, setSalesContractFlow] = useState<SalesContractFlowState | null>(null);
+  const [salesContractAmountDraft, setSalesContractAmountDraft] = useState('');
+  const [salesContractSaving, setSalesContractSaving] = useState(false);
+  const [salesContractFieldError, setSalesContractFieldError] = useState('');
 
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState<ProjectCategory>('sorting_equipment');
@@ -97,6 +111,8 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
   const [formScale, setFormScale] = useState('');
   const [formCycle, setFormCycle] = useState('');
   const [formContact, setFormContact] = useState('');
+  /** Montant devis / contrat (€), affiché si statut ≥ Devis. */
+  const [formContractAmount, setFormContractAmount] = useState('');
   /** Erreur affichée dans la modale (les alertes globales passent souvent derrière une Modal sur le web). */
   const [createFormError, setCreateFormError] = useState('');
   const [sortMode, setSortMode] = useState<CrmProjectSort>('created_desc');
@@ -223,6 +239,7 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     setFormScale('');
     setFormCycle('');
     setFormContact('');
+    setFormContractAmount('');
     setCreateFormError('');
   };
 
@@ -245,6 +262,11 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     setFormScale(p.scale ?? '');
     setFormCycle(p.cycle ?? '');
     setFormContact(p.client_contact ?? '');
+    setFormContractAmount(
+      p.contract_amount != null && !Number.isNaN(Number(p.contract_amount))
+        ? formatAmountThousandsFromNumber(Number(p.contract_amount))
+        : ''
+    );
     setCreateFormError('');
     setEditingProjectId(p.id);
     setProjectFormOpen(true);
@@ -269,6 +291,40 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     });
   };
 
+  const runProjectSave = async (
+    input: NewProjectInput,
+    editingId: string | null,
+    contractAmount?: number | null
+  ) => {
+    const payload: NewProjectInput =
+      contractAmount !== undefined ? { ...input, contract_amount: contractAmount } : input;
+    if (editingId) {
+      const { error, data } = await updateProject(editingId, payload);
+      if (error || !data) {
+        const msg = error ? formatCreateError(error) : t('crm.updateNoRow');
+        setCreateFormError(msg);
+        popup(t('common.error'), msg, 'error');
+        return;
+      }
+      closeProjectForm();
+      setTimeout(() => {
+        showAppAlert(t('common.success'), t('crm.editSuccess'), 'success');
+      }, 200);
+      return;
+    }
+    const { error, data } = await createProject(profile.id, payload);
+    if (error || !data) {
+      const msg = error ? formatCreateError(error) : t('crm.createNoRow');
+      setCreateFormError(msg);
+      popup(t('common.error'), msg, 'error');
+      return;
+    }
+    closeProjectForm();
+    setTimeout(() => {
+      showAppAlert(t('common.success'), t('crm.createSuccess'), 'success');
+    }, 200);
+  };
+
   const submitProjectForm = async () => {
     setCreateFormError('');
     const name = formName.trim();
@@ -278,41 +334,35 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
       popup(t('common.error'), t('crm.nameRequired'), 'error');
       return;
     }
+    const input: NewProjectInput = {
+      name,
+      category: formCategory,
+      status: formStatus,
+      scale: formScale.trim(),
+      cycle: formCycle.trim(),
+      client_contact: formContact.trim(),
+    };
+
+    let contractAmountForSave: number | undefined;
+    if (projectStatusRequiresContractAmount(formStatus)) {
+      const parsed = parseLocaleAmount(formContractAmount);
+      if (parsed == null || parsed < 0) {
+        const msg = t('crm.contractAmountInvalid');
+        setCreateFormError(msg);
+        createScrollRef.current?.scrollTo({ y: 0, animated: true });
+        popup(t('common.error'), msg, 'error');
+        return;
+      }
+      contractAmountForSave = parsed;
+    }
+
     setSaving(true);
     try {
-      const input: NewProjectInput = {
-        name,
-        category: formCategory,
-        status: formStatus,
-        scale: formScale.trim(),
-        cycle: formCycle.trim(),
-        client_contact: formContact.trim(),
-      };
-      if (editingProjectId) {
-        const { error, data } = await updateProject(editingProjectId, input);
-        if (error || !data) {
-          const msg = error ? formatCreateError(error) : t('crm.updateNoRow');
-          setCreateFormError(msg);
-          popup(t('common.error'), msg, 'error');
-          return;
-        }
-        closeProjectForm();
-        setTimeout(() => {
-          showAppAlert(t('common.success'), t('crm.editSuccess'), 'success');
-        }, 200);
-      } else {
-        const { error, data } = await createProject(profile.id, input);
-        if (error || !data) {
-          const msg = error ? formatCreateError(error) : t('crm.createNoRow');
-          setCreateFormError(msg);
-          popup(t('common.error'), msg, 'error');
-          return;
-        }
-        closeProjectForm();
-        setTimeout(() => {
-          showAppAlert(t('common.success'), t('crm.createSuccess'), 'success');
-        }, 200);
-      }
+      await runProjectSave(
+        input,
+        editingProjectId,
+        contractAmountForSave !== undefined ? contractAmountForSave : undefined
+      );
     } catch (e) {
       const msg = formatCreateError(e);
       setCreateFormError(msg);
@@ -322,8 +372,48 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     }
   };
 
+  const confirmSalesContractAmount = async () => {
+    setSalesContractFieldError('');
+    const amount = parseLocaleAmount(salesContractAmountDraft);
+    if (amount == null || amount < 0) {
+      setSalesContractFieldError(t('crm.contractAmountInvalid'));
+      return;
+    }
+    if (!salesContractFlow) return;
+    setSalesContractSaving(true);
+    try {
+      const { project, newStatus } = salesContractFlow;
+      const { error } = await updateProjectStatusAndContractAmount(project.id, newStatus, amount);
+      if (error) {
+        showAppAlert(t('common.error'), error.message ?? String(error), 'error');
+        return;
+      }
+      setSalesContractFlow(null);
+      showAppAlert(t('common.success'), t('crm.contractAmountSaved'), 'success');
+    } finally {
+      setSalesContractSaving(false);
+    }
+  };
+
   const onPickStatus = async (p: Project, status: ProjectStatus) => {
     setStatusModalProject(null);
+    if (
+      salesShouldPromptContractAmount({
+        role: profile.role,
+        prevStatus: p.status,
+        nextStatus: status,
+        currentContractAmount: p.contract_amount,
+      })
+    ) {
+      setSalesContractFieldError('');
+      setSalesContractFlow({ kind: 'status', project: p, newStatus: status });
+      setSalesContractAmountDraft(
+        p.contract_amount != null
+          ? formatAmountThousandsFromNumber(Number(p.contract_amount))
+          : ''
+      );
+      return;
+    }
     const { error } = await updateProjectStatus(p.id, status);
     if (error) {
       showAppAlert(t('common.error'), error.message ?? String(error), 'error');
@@ -1232,7 +1322,12 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
                         ? 'bg-primary-600 border-primary-600'
                         : 'bg-gray-50 border-gray-200'
                     }`}
-                    onPress={() => setFormStatus(s)}
+                    onPress={() => {
+                      setFormStatus(s);
+                      if (!projectStatusRequiresContractAmount(s)) {
+                        setFormContractAmount('');
+                      }
+                    }}
                   >
                     <Text
                       className={`text-xs font-medium ${formStatus === s ? 'text-white' : 'text-gray-700'}`}
@@ -1242,6 +1337,23 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {projectStatusRequiresContractAmount(formStatus) ? (
+                <>
+                  <Text className="text-gray-700 font-medium mb-1">{t('crm.contractAmountLabel')}</Text>
+                  <Text className="text-gray-500 text-xs mb-2">{t('crm.contractAmountFormHint')}</Text>
+                  <TextInput
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-4"
+                    keyboardType="decimal-pad"
+                    value={formContractAmount}
+                    onChangeText={text => {
+                      setFormContractAmount(formatAmountThousandsSpaces(text));
+                      if (createFormError) setCreateFormError('');
+                    }}
+                    placeholder={t('crm.contractAmountPlaceholder')}
+                  />
+                </>
+              ) : null}
 
               <Text className="text-gray-700 font-medium mb-1">{t('crm.scale')}</Text>
               <TextInput
@@ -1389,6 +1501,16 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
                       {detailProject.client_contact?.trim() ? detailProject.client_contact : '—'}
                     </Text>
                   </View>
+                  <View className="mb-1">
+                    <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wide">
+                      {t('crm.contractAmountLabel')}
+                    </Text>
+                    <Text className="text-gray-900 text-base mt-1">
+                      {detailProject.contract_amount != null && !Number.isNaN(Number(detailProject.contract_amount))
+                        ? `${Number(detailProject.contract_amount).toLocaleString(i18nInstance.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                        : '—'}
+                    </Text>
+                  </View>
                 </ScrollView>
               </>
             ) : null}
@@ -1426,6 +1548,81 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!salesContractFlow}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          if (!salesContractSaving) setSalesContractFlow(null);
+        }}
+      >
+        <View className="flex-1" style={modalShellStyle}>
+          <Pressable
+            className="absolute inset-0 bg-black/40"
+            onPress={() => {
+              if (!salesContractSaving) setSalesContractFlow(null);
+            }}
+          />
+          <View
+            className="bg-white rounded-t-[24px] border border-gray-100"
+            style={modalCardStyle}
+          >
+            <Text className="text-lg font-bold text-gray-900 px-5 pt-5 pb-1">
+              {t('crm.contractAmountTitle')}
+            </Text>
+            <Text className="text-sm text-gray-500 px-5 pb-3">
+              {salesContractFlow
+                ? t('crm.contractAmountHintStatus', {
+                    name: salesContractFlow.project.name,
+                    status: t(`crm.statuses.${salesContractFlow.newStatus}`),
+                  })
+                : ''}
+            </Text>
+            <View className="px-5 pb-5">
+              <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                {t('crm.contractAmountLabel')}
+              </Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-3 py-3 text-base text-gray-900 bg-white"
+                keyboardType="decimal-pad"
+                placeholder="0"
+                editable={!salesContractSaving}
+                value={salesContractAmountDraft}
+                onChangeText={text => {
+                  setSalesContractAmountDraft(formatAmountThousandsSpaces(text));
+                  if (salesContractFieldError) setSalesContractFieldError('');
+                }}
+              />
+              {salesContractFieldError ? (
+                <Text className="text-red-600 text-sm mt-2">{salesContractFieldError}</Text>
+              ) : null}
+              <View className="flex-row gap-3 mt-5">
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl border border-gray-200 items-center"
+                  disabled={salesContractSaving}
+                  onPress={() => {
+                    if (!salesContractSaving) setSalesContractFlow(null);
+                  }}
+                >
+                  <Text className="text-gray-800 font-semibold">{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl bg-primary-600 items-center"
+                  disabled={salesContractSaving}
+                  onPress={() => void confirmSalesContractAmount()}
+                >
+                  {salesContractSaving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-white font-semibold">{t('common.confirm')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>

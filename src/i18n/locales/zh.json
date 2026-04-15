@@ -25,6 +25,7 @@
     "expenses": "报销",
     "admin": "管理",
     "crm": "项目",
+    "finance": "财务",
     "notifications": "通知",
     "settings": "设置"
   },
@@ -91,7 +92,37 @@
       "contract": "合同",
       "delivery": "交付",
       "lost": "丢标"
-    }
+    },
+    "contractAmountTitle": "报价 / 合同金额",
+    "contractAmountLabel": "金额 (€)",
+    "contractAmountHintStatus": "项目「{{name}}」— 将调整为：{{status}}。请输入金额。",
+    "contractAmountHintForm": "报价或更后阶段：必须填写金额。",
+    "contractAmountFormHint": "报价、合同或交付阶段必填。只要项目处于该阶段或之后，可随时修改。",
+    "contractAmountPlaceholder": "例：12500 或 12500,50",
+    "contractAmountInvalid": "请输入有效金额（非负数）。",
+    "contractAmountSaved": "金额已随新状态保存。"
+  },
+  "finance": {
+    "title": "项目财务",
+    "subtitle": "签约金额、付款条件、固定成本与净利润（已批准报销 = 已验证）。",
+    "listSummary": "共 {{count}} 个项目 — 按名称排序。点选项目以编辑财务。",
+    "detailModalTitle": "项目财务",
+    "backToList": "返回项目列表",
+    "openProjectFinance": "打开项目 {{name}} 的财务",
+    "contractAmountShort": "报价",
+    "empty": "暂无项目。",
+    "contractAmount": "报价 / 合同金额 (€)",
+    "paymentTerms": "付款条件",
+    "paymentTermsPlaceholder": "例：下单付 30%，交付付尾款…",
+    "fixedCostsHint": "固定成本（财务填写）— 用于计算净利润。",
+    "costLabor": "人工 (€)",
+    "costRent": "场地租赁 (€)",
+    "costMaterials": "材料 (€)",
+    "validatedExpensesSum": "已验证报销合计（含税）",
+    "approvedMeansValidated": "仅统计状态为「已批准」的报销。",
+    "netMargin": "净利润",
+    "amountInvalid": "金额无效。",
+    "saveSuccess": "财务数据已保存。"
   },
   "errors": {
     "storageImageRead": "无法读取图片（代码 {{status}}）。",

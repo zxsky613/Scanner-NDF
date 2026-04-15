@@ -1,4 +1,4 @@
-/** Parse un montant saisi (virgule ou point). */
+/** Parse un montant saisi (espaces milliers, virgule ou point décimal). */
 export function parseMoney(value: string): number | null {
   const s = value.replace(/\s/g, '').replace(',', '.').trim();
   if (s === '' || s === '-' || s === '.') return null;

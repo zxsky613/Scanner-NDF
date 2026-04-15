@@ -25,6 +25,7 @@
     "expenses": "Expenses",
     "admin": "Dashboard",
     "crm": "Project",
+    "finance": "Finance",
     "notifications": "Alerts",
     "settings": "Settings"
   },
@@ -91,7 +92,37 @@
       "contract": "Contract",
       "delivery": "Delivery",
       "lost": "Lost"
-    }
+    },
+    "contractAmountTitle": "Quote / contract amount",
+    "contractAmountLabel": "Amount (€)",
+    "contractAmountHintStatus": "Project “{{name}}” — moving to: {{status}}. Enter the amount.",
+    "contractAmountHintForm": "Quote stage or later: amount is required.",
+    "contractAmountFormHint": "Required for Quote, Contract or Delivery. You can change it whenever the project stays at this stage or later.",
+    "contractAmountPlaceholder": "e.g. 12500 or 12500.50",
+    "contractAmountInvalid": "Enter a valid amount (zero or positive number).",
+    "contractAmountSaved": "Amount saved with the new status."
+  },
+  "finance": {
+    "title": "Project finance",
+    "subtitle": "Signed amounts, payment terms, fixed costs and net margin (approved expenses = validated).",
+    "listSummary": "{{count}} project(s) — sorted by name. Tap a project to edit its finance sheet.",
+    "detailModalTitle": "Finance sheet",
+    "backToList": "Back to project list",
+    "openProjectFinance": "Open finance for {{name}}",
+    "contractAmountShort": "Quote",
+    "empty": "No projects.",
+    "contractAmount": "Quote / contract amount (€)",
+    "paymentTerms": "Payment terms",
+    "paymentTermsPlaceholder": "E.g. 30% on order, balance on delivery…",
+    "fixedCostsHint": "Fixed costs (Finance) — used for net margin.",
+    "costLabor": "Labor (€)",
+    "costRent": "Rent (€)",
+    "costMaterials": "Materials (€)",
+    "validatedExpensesSum": "Total validated expenses (incl. VAT)",
+    "approvedMeansValidated": "Only expenses with status “Approved” (validated).",
+    "netMargin": "Net margin",
+    "amountInvalid": "Invalid amount.",
+    "saveSuccess": "Finance data saved."
   },
   "errors": {
     "storageImageRead": "Could not read the image (code {{status}}).",

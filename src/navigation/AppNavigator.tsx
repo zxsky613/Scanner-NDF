@@ -18,6 +18,7 @@ import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { CrmProjectsScreen } from '../screens/crm/CrmProjectsScreen';
+import { FinanceProjectsScreen } from '../screens/finance/FinanceProjectsScreen';
 import { IS_WEB, webLeftTabBarStyle } from '../config/webLayout';
 import { WebDesktopSidebar } from '../components/WebDesktopSidebar';
 import { hasExpenseManagementAccess } from '../lib/roles';
@@ -104,10 +105,23 @@ const CrmStack: React.FC<CrmStackProps> = ({ profile }) => (
   </Stack.Navigator>
 );
 
+interface FinanceStackProps {
+  profile: Profile;
+}
+
+const FinanceStack: React.FC<FinanceStackProps> = ({ profile }) => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="FinanceHome">
+      {(props: any) => <FinanceProjectsScreen {...props} profile={profile} />}
+    </Stack.Screen>
+  </Stack.Navigator>
+);
+
 interface MainNavigatorProps {
   profile: Profile;
   isAdmin: boolean;
   isCrmAccess: boolean;
+  isFinanceTabAccess: boolean;
   onLogout: () => Promise<void>;
 }
 
@@ -135,6 +149,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   profile,
   isAdmin,
   isCrmAccess,
+  isFinanceTabAccess,
   onLogout,
 }) => {
   const { t } = useTranslation();
@@ -218,6 +233,20 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
           }}
         >
           {() => <CrmStack profile={profile} />}
+        </Tab.Screen>
+      )}
+
+      {isFinanceTabAccess && (
+        <Tab.Screen
+          name="FinanceTab"
+          options={{
+            tabBarLabel: t('navTabs.finance'),
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="chart-line" focused={focused} />
+            ),
+          }}
+        >
+          {() => <FinanceStack profile={profile} />}
         </Tab.Screen>
       )}
 

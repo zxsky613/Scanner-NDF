@@ -13,6 +13,16 @@ export type NewProjectInput = {
   scale: string;
   cycle: string;
   client_contact: string;
+  /** Saisi Sales (popup) ; omis = ne pas modifier en update. */
+  contract_amount?: number | null;
+};
+
+export type ProjectFinanceFields = {
+  contract_amount: number | null;
+  payment_terms: string;
+  cost_labor: number | null;
+  cost_rent: number | null;
+  cost_materials: number | null;
 };
 
 export const useProjects = () => {
@@ -37,10 +47,12 @@ export const useProjects = () => {
   }, []);
 
   const createProject = useCallback(async (userId: string, input: NewProjectInput) => {
+    const { contract_amount, ...rest } = input;
     const { data, error } = await supabase
       .from('projects')
       .insert({
-        ...input,
+        ...rest,
+        ...(contract_amount != null ? { contract_amount } : {}),
         created_by: userId,
       })
       .select(PROJECT_WITH_CREATOR)
@@ -67,16 +79,54 @@ export const useProjects = () => {
     return { error: null };
   }, []);
 
-  const updateProject = useCallback(async (id: string, input: NewProjectInput) => {
+  const updateProjectStatusAndContractAmount = useCallback(
+    async (id: string, status: ProjectStatus, contractAmount: number) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .update({ status, contract_amount: contractAmount })
+        .eq('id', id)
+        .select(PROJECT_WITH_CREATOR)
+        .single();
+      if (error) return { error };
+      const row = data as Project;
+      setProjects(prev => prev.map(p => (p.id === id ? row : p)));
+      return { error: null };
+    },
+    []
+  );
+
+  const updateProjectFinanceFields = useCallback(async (id: string, fields: ProjectFinanceFields) => {
     const { data, error } = await supabase
       .from('projects')
       .update({
-        name: input.name,
-        category: input.category,
-        status: input.status,
-        scale: input.scale,
-        cycle: input.cycle,
-        client_contact: input.client_contact,
+        contract_amount: fields.contract_amount,
+        payment_terms: fields.payment_terms,
+        cost_labor: fields.cost_labor,
+        cost_rent: fields.cost_rent,
+        cost_materials: fields.cost_materials,
+      })
+      .eq('id', id)
+      .select(PROJECT_WITH_CREATOR)
+      .single();
+    if (error) return { error, data: null };
+    if (data == null) return { error: null, data: null };
+    const row = data as Project;
+    setProjects(prev => prev.map(p => (p.id === id ? row : p)));
+    return { error: null, data: row };
+  }, []);
+
+  const updateProject = useCallback(async (id: string, input: NewProjectInput) => {
+    const { contract_amount, ...base } = input;
+    const { data, error } = await supabase
+      .from('projects')
+      .update({
+        name: base.name,
+        category: base.category,
+        status: base.status,
+        scale: base.scale,
+        cycle: base.cycle,
+        client_contact: base.client_contact,
+        ...(contract_amount !== undefined ? { contract_amount } : {}),
       })
       .eq('id', id)
       .select(PROJECT_WITH_CREATOR)
@@ -102,6 +152,8 @@ export const useProjects = () => {
     createProject,
     updateProject,
     updateProjectStatus,
+    updateProjectStatusAndContractAmount,
+    updateProjectFinanceFields,
     deleteProject,
   };
 };
