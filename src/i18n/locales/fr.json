@@ -54,6 +54,7 @@
     "createdByUnknown": "—",
     "createdAt": "Créé le",
     "projectStage": "Étape",
+    "webProjectActionsMenu": "Actions sur le projet",
     "viewDetail": "Voir le détail",
     "detailTitle": "Détail du projet",
     "updatedAt": "Dernière mise à jour",
@@ -175,7 +176,9 @@
     "accessCodeMissingTitle": "Code d’accès requis",
     "accessCodeMissingBody": "Pour un compte Finance, saisissez le code d’accès fourni par l’équipe.",
     "invalidAccessCodeTitle": "Code d’accès incorrect",
-    "invalidAccessCodeBody": "Ce code ne permet pas de créer un compte Finance. Vérifiez la saisie ou laissez le champ vide pour vous inscrire en tant qu’employé."
+    "invalidAccessCodeBody": "Ce code ne permet pas de créer un compte Finance. Vérifiez la saisie ou laissez le champ vide pour vous inscrire en tant qu’employé.",
+    "legalRegisterLead": "Documents à consulter avant inscription :",
+    "legalLoginLead": "Informations légales :"
   },
   "employee": {
     "title": "Mes Notes de Frais",

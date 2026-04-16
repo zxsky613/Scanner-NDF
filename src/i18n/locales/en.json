@@ -54,6 +54,7 @@
     "createdByUnknown": "—",
     "createdAt": "Created",
     "projectStage": "Stage",
+    "webProjectActionsMenu": "Project actions",
     "viewDetail": "View details",
     "detailTitle": "Project details",
     "updatedAt": "Last updated",
@@ -175,7 +176,9 @@
     "accessCodeMissingTitle": "Access code required",
     "accessCodeMissingBody": "Enter the team access code to register as Finance.",
     "invalidAccessCodeTitle": "Invalid access code",
-    "invalidAccessCodeBody": "This code does not allow creating a Finance account. Check your entry or leave the field empty to register as an employee."
+    "invalidAccessCodeBody": "This code does not allow creating a Finance account. Check your entry or leave the field empty to register as an employee.",
+    "legalRegisterLead": "Please review before signing up:",
+    "legalLoginLead": "Legal information:"
   },
   "employee": {
     "title": "My Expenses",

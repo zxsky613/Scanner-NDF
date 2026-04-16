@@ -16,6 +16,7 @@ import { NewExpenseScreen } from '../screens/employee/NewExpenseScreen';
 import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { LegalDocumentScreen } from '../screens/legal/LegalDocumentScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { CrmProjectsScreen } from '../screens/crm/CrmProjectsScreen';
 import { FinanceProjectsScreen } from '../screens/finance/FinanceProjectsScreen';
@@ -24,6 +25,7 @@ import { WebDesktopSidebar } from '../components/WebDesktopSidebar';
 import { hasExpenseManagementAccess } from '../lib/roles';
 
 const Stack = createNativeStackNavigator();
+const SettingsStackNavigator = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 interface AuthNavigatorProps {
@@ -43,6 +45,9 @@ export const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onLogin, onRegiste
     </Stack.Screen>
     <Stack.Screen name="Register">
       {(props: any) => <RegisterScreen {...props} onRegister={onRegister} />}
+    </Stack.Screen>
+    <Stack.Screen name="LegalDocument">
+      {(props: any) => <LegalDocumentScreen {...props} />}
     </Stack.Screen>
   </Stack.Navigator>
 );
@@ -115,6 +120,22 @@ const FinanceStack: React.FC<FinanceStackProps> = ({ profile }) => (
       {(props: any) => <FinanceProjectsScreen {...props} profile={profile} />}
     </Stack.Screen>
   </Stack.Navigator>
+);
+
+interface SettingsStackProps {
+  profile: Profile;
+  onLogout: () => Promise<void>;
+}
+
+const SettingsStack: React.FC<SettingsStackProps> = ({ profile, onLogout }) => (
+  <SettingsStackNavigator.Navigator screenOptions={{ headerShown: false }}>
+    <SettingsStackNavigator.Screen name="SettingsHome">
+      {() => <SettingsScreen profile={profile} onLogout={onLogout} />}
+    </SettingsStackNavigator.Screen>
+    <SettingsStackNavigator.Screen name="LegalDocument">
+      {(props: any) => <LegalDocumentScreen {...props} />}
+    </SettingsStackNavigator.Screen>
+  </SettingsStackNavigator.Navigator>
 );
 
 interface MainNavigatorProps {
@@ -289,7 +310,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
           tabBarIcon: ({ focused }) => <TabIcon name="cog-outline" focused={focused} />,
         }}
       >
-        {() => <SettingsScreen profile={profile} onLogout={onLogout} />}
+        {() => <SettingsStack profile={profile} onLogout={onLogout} />}
       </Tab.Screen>
     </Tab.Navigator>
   );

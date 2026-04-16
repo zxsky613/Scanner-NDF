@@ -6,13 +6,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import fr from './locales/fr.json';
 import en from './locales/en.json';
 import zh from './locales/zh.json';
+import legalFr from './legal/fr';
+import legalEn from './legal/en';
+import legalZh from './legal/zh';
 
 const LANGUAGE_KEY = '@app_language';
 
 const resources = {
-  fr: { translation: fr },
-  en: { translation: en },
-  zh: { translation: zh },
+  fr: { translation: { ...fr, legal: legalFr } },
+  en: { translation: { ...en, legal: legalEn } },
+  zh: { translation: { ...zh, legal: legalZh } },
 };
 
 const getStoredLanguage = async (): Promise<string> => {

@@ -154,6 +154,25 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
                 <Text className="font-semibold">{t('auth.register')}</Text>
               </Text>
             </TouchableOpacity>
+
+            <Text className="text-gray-500 text-xs text-center mt-5 mb-2">{t('auth.legalLoginLead')}</Text>
+            <View className="flex-row flex-wrap justify-center gap-x-3 gap-y-2">
+              {(
+                [
+                  ['mentions', 'legal.openMentions'],
+                  ['privacy', 'legal.openPrivacy'],
+                  ['terms', 'legal.openTerms'],
+                ] as const
+              ).map(([kind, labelKey]) => (
+                <TouchableOpacity
+                  key={kind}
+                  onPress={() => navigation.navigate('LegalDocument', { kind })}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                >
+                  <Text className="text-primary-600 text-xs font-semibold underline">{t(labelKey)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
       </ScrollView>

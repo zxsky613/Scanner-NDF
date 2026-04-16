@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start --lan --port 8082 --offline",
+    "start": "cross-env EXPO_OFFLINE=1 expo start --lan --port 8082 --offline",
     "start:tunnel": "expo start --tunnel --port 8082",
-    "dev": "expo start --web --port 8082 --offline",
-    "android": "expo start --android --offline",
-    "ios": "expo start --ios --offline",
-    "web": "expo start --web --port 8082 --offline",
+    "dev": "cross-env EXPO_OFFLINE=1 expo start --web --port 8082 --offline",
+    "android": "cross-env EXPO_OFFLINE=1 expo start --android --offline",
+    "ios": "cross-env EXPO_OFFLINE=1 expo start --ios --offline",
+    "web": "cross-env EXPO_OFFLINE=1 expo start --web --port 8082 --offline",
     "build:web": "expo export --platform web"
   },
   "dependencies": {
@@ -53,6 +53,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.10",
+    "cross-env": "^10.1.0",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -1,6 +1,9 @@
 import React, { type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { changeLanguage } from '../../i18n';
 import { showAppConfirm } from '../../utils/alert';
 import { Profile, SupportedLanguage } from '../../types';
@@ -16,6 +19,12 @@ import {
   webHeroCardInlineStyle,
   webHeaderOuterInlineStyle,
 } from '../../config/webLayout';
+import type { LegalDocKind } from '../legal/LegalDocumentScreen';
+
+type SettingsStackNav = NativeStackNavigationProp<{
+  SettingsHome: undefined;
+  LegalDocument: { kind: LegalDocKind };
+}>;
 
 interface Props {
   profile: Profile;
@@ -50,9 +59,11 @@ function LanguageFlagIcon({ code, emoji }: { code: SupportedLanguage; emoji: str
 }
 
 export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
+  const navigation = useNavigation<SettingsStackNav>();
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
+  const legalKinds: LegalDocKind[] = ['mentions', 'privacy', 'terms'];
 
   const handleLanguageChange = async (lang: SupportedLanguage) => {
     await changeLanguage(lang);
@@ -192,6 +203,28 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
             }
           />
           <InfoRow label={t('settings.version')} value="1.0.0" />
+        </View>
+
+        <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
+          <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>
+            {t('legal.sectionTitle')}
+          </Text>
+          {legalKinds.map((kind, i) => (
+            <TouchableOpacity
+              key={kind}
+              className={`flex-row items-center justify-between py-3.5 ${
+                i < legalKinds.length - 1 ? 'border-b border-gray-50' : ''
+              }`}
+              onPress={() => navigation.navigate('LegalDocument', { kind })}
+              accessibilityRole="button"
+              accessibilityLabel={t(`legal.documents.${kind}.title`)}
+            >
+              <Text className="text-gray-800 font-medium text-base pr-2 flex-1">
+                {t(`legal.documents.${kind}.title`)}
+              </Text>
+              <Ionicons name="chevron-forward" size={22} color={theme.inkMuted} />
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Logout */}

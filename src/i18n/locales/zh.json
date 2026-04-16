@@ -54,6 +54,7 @@
     "createdByUnknown": "—",
     "createdAt": "创建日期",
     "projectStage": "阶段",
+    "webProjectActionsMenu": "项目操作",
     "viewDetail": "查看详情",
     "detailTitle": "项目详情",
     "updatedAt": "最后更新",
@@ -175,7 +176,9 @@
     "accessCodeMissingTitle": "需要访问码",
     "accessCodeMissingBody": "注册为财务角色时请输入团队访问码。",
     "invalidAccessCodeTitle": "访问码无效",
-    "invalidAccessCodeBody": "无法以此访问码创建财务账户。请核对或留空以注册为员工。"
+    "invalidAccessCodeBody": "无法以此访问码创建财务账户。请核对或留空以注册为员工。",
+    "legalRegisterLead": "注册前请阅读：",
+    "legalLoginLead": "法律信息："
   },
   "employee": {
     "title": "我的费用",

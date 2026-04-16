@@ -240,6 +240,25 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
               </View>
             ) : null}
 
+            <Text className="text-gray-500 text-xs text-center mb-2 leading-5">{t('auth.legalRegisterLead')}</Text>
+            <View className="flex-row flex-wrap justify-center gap-x-3 gap-y-2 mb-5">
+              {(
+                [
+                  ['mentions', 'legal.openMentions'],
+                  ['privacy', 'legal.openPrivacy'],
+                  ['terms', 'legal.openTerms'],
+                ] as const
+              ).map(([kind, labelKey]) => (
+                <TouchableOpacity
+                  key={kind}
+                  onPress={() => navigation.navigate('LegalDocument', { kind })}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                >
+                  <Text className="text-primary-600 text-xs font-semibold underline">{t(labelKey)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TouchableOpacity
               className={`w-full rounded-full py-4 items-center ${loading ? 'bg-primary-400' : 'bg-primary-600'}`}
               onPress={handleRegister}

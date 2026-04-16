@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Dimensions,
+  type ViewStyle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Calendar } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
 import { useFocusEffect } from '@react-navigation/native';
@@ -72,6 +75,180 @@ const projectSwipeStyles = {
   iconEdit: '#B45309' as const,
   iconDelete: '#C94A54' as const,
 };
+
+const WEB_CRM_MENU_W = 228;
+
+/** Carte projet web : menu ⋮ comme l’onglet « Mes notes » (Voir / Modifier / Supprimer). */
+function WebCrmProjectCardWeb({
+  cardX,
+  titleBlock,
+  statusBlock,
+  canManage,
+  expanded,
+  onToggleExpand,
+  onCollapse,
+  onView,
+  onEdit,
+  onDelete,
+  t,
+}: {
+  cardX: string;
+  titleBlock: ReactNode;
+  statusBlock: ReactNode;
+  canManage: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onCollapse: () => void;
+  onView: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  t: TFunction;
+}) {
+  const menuBtnRef = useRef<View>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!expanded) setMenuAnchor(null);
+  }, [expanded]);
+
+  const onMenuButtonPress = () => {
+    if (expanded) {
+      onCollapse();
+      return;
+    }
+    const node = menuBtnRef.current;
+    if (node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((x, y, width, height) => {
+        setMenuAnchor({ x, y, width, height });
+        onToggleExpand();
+      });
+    } else {
+      onToggleExpand();
+    }
+  };
+
+  const menuPosition = (() => {
+    if (!menuAnchor) return null;
+    const { width: winW, height: winH } = Dimensions.get('window');
+    const pad = 10;
+    const rows = canManage ? 3 : 1;
+    const estH = rows * 48 + 12;
+    let top = menuAnchor.y + menuAnchor.height + 6;
+    if (top + estH > winH - pad) {
+      top = Math.max(pad, menuAnchor.y - estH - 6);
+    }
+    let left = menuAnchor.x + menuAnchor.width - WEB_CRM_MENU_W;
+    left = Math.max(pad, Math.min(left, winW - WEB_CRM_MENU_W - pad));
+    return { top, left };
+  })();
+
+  return (
+    <View className={`mb-3 ${cardX}`}>
+      <View className="bg-white rounded-[22px] p-5 border border-gray-100/80 shadow-sm">
+        <View className="flex-row items-start justify-between gap-2">
+          {titleBlock}
+          <View ref={menuBtnRef} collapsable={false}>
+            <Pressable
+              className="p-1.5 rounded-lg active:bg-gray-200/80 shrink-0"
+              onPress={onMenuButtonPress}
+              accessibilityRole="button"
+              accessibilityLabel={t('crm.webProjectActionsMenu')}
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color={theme.brandInk} />
+            </Pressable>
+          </View>
+        </View>
+        {statusBlock}
+      </View>
+
+      <Modal
+        visible={expanded && menuPosition !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={onCollapse}
+      >
+        <View className="flex-1">
+          <Pressable
+            className="flex-1"
+            style={{ backgroundColor: 'rgba(36, 41, 73, 0.14)' }}
+            onPress={onCollapse}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+          />
+          {menuPosition ? (
+            <View
+              className="rounded-xl border border-gray-200/90 bg-white overflow-hidden py-1"
+              style={
+                {
+                  position: 'absolute',
+                  top: menuPosition.top,
+                  left: menuPosition.left,
+                  width: WEB_CRM_MENU_W,
+                  zIndex: 10,
+                  ...(Platform.OS === 'web'
+                    ? { boxShadow: '0 12px 40px rgba(36, 41, 73, 0.14)' }
+                    : { elevation: 12 }),
+                } as ViewStyle
+              }
+            >
+              <Pressable
+                className="flex-row items-center gap-3 px-4 py-3 active:bg-gray-50"
+                onPress={() => {
+                  onCollapse();
+                  onView();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('crm.viewDetail')}
+              >
+                <Ionicons name="eye-outline" size={20} color={projectSwipeStyles.iconView} />
+                <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                  {t('crm.viewDetail')}
+                </Text>
+              </Pressable>
+              {canManage ? (
+                <>
+                  <View className="h-px bg-gray-100 mx-3" />
+                  <Pressable
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-gray-50"
+                    onPress={() => {
+                      onCollapse();
+                      onEdit();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.edit')}
+                  >
+                    <Ionicons name="create-outline" size={20} color={projectSwipeStyles.iconEdit} />
+                    <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
+                      {t('common.edit')}
+                    </Text>
+                  </Pressable>
+                  <View className="h-px bg-gray-100 mx-3" />
+                  <Pressable
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-red-50"
+                    onPress={() => {
+                      onCollapse();
+                      onDelete();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.delete')}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={projectSwipeStyles.iconDelete} />
+                    <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+    </View>
+  );
+}
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -135,6 +312,8 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const createScrollRef = useRef<ScrollView>(null);
   const projectSwipeRefs = useRef<Map<string, Swipeable>>(new Map());
+  /** Web : ligne dont le menu ⋮ est ouvert. */
+  const [webProjectMenuRowId, setWebProjectMenuRowId] = useState<string | null>(null);
 
   const sortOptions: { mode: CrmProjectSort; label: 'sortCreated' | 'sortOwner' | 'sortStatus' }[] = [
     { mode: 'created_desc', label: 'sortCreated' },
@@ -162,6 +341,8 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
       return () => {
         if (!IS_WEB) {
           projectSwipeRefs.current.forEach(s => s.close());
+        } else {
+          setWebProjectMenuRowId(null);
         }
       };
     }, [])
@@ -536,36 +717,25 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
   const renderProject = ({ item }: { item: Project }) => {
     const canManage = canManageProject(profile.role, profile.id, item.created_by);
 
-    const webActionIcons = (
-      <View className="flex-row items-start gap-2 shrink-0 pt-0.5">
-        <TouchableOpacity
-          onPress={() => setDetailProject(item)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('crm.viewDetail')}
-        >
-          <Ionicons name="eye-outline" size={22} color={theme.brandInk} />
-        </TouchableOpacity>
-        {canManage ? (
-          <>
-            <TouchableOpacity
-              onPress={() => openEdit(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.edit')}
-            >
-              <Ionicons name="pencil-outline" size={22} color={theme.brandInk} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => void onDelete(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.delete')}
-            >
-              <Ionicons name="trash-outline" size={22} color="#dc2626" />
-            </TouchableOpacity>
-          </>
-        ) : null}
+    const titleBlock = (
+      <View className="flex-1 min-w-0">
+        <Text className="font-bold text-gray-900 text-base" numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text className="text-gray-600 text-xs mt-2">
+          {t('crm.createdBy')}:{' '}
+          <Text className="font-medium text-gray-800">
+            {projectLeadLabel(item) ?? t('crm.createdByUnknown')}
+          </Text>
+        </Text>
+        <Text className="text-gray-500 text-xs mt-1">
+          {t('crm.createdAt')}:{' '}
+          <Text className="font-medium text-gray-700">{formatDate(item.created_at)}</Text>
+        </Text>
+        <Text className="text-gray-600 text-xs mt-1">
+          {t('crm.projectStage')}:{' '}
+          <Text className="font-medium text-gray-800">{t(`crm.statuses.${item.status}`)}</Text>
+        </Text>
       </View>
     );
 
@@ -591,39 +761,28 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
 
     const cardBody = (
       <>
-        <View className="flex-row items-start justify-between gap-2">
-          <View className="flex-1 min-w-0">
-            <Text className="font-bold text-gray-900 text-base" numberOfLines={2}>
-              {item.name}
-            </Text>
-            <Text className="text-gray-600 text-xs mt-2">
-              {t('crm.createdBy')}:{' '}
-              <Text className="font-medium text-gray-800">
-                {projectLeadLabel(item) ?? t('crm.createdByUnknown')}
-              </Text>
-            </Text>
-            <Text className="text-gray-500 text-xs mt-1">
-              {t('crm.createdAt')}:{' '}
-              <Text className="font-medium text-gray-700">{formatDate(item.created_at)}</Text>
-            </Text>
-            <Text className="text-gray-600 text-xs mt-1">
-              {t('crm.projectStage')}:{' '}
-              <Text className="font-medium text-gray-800">{t(`crm.statuses.${item.status}`)}</Text>
-            </Text>
-          </View>
-          {IS_WEB ? webActionIcons : null}
-        </View>
+        <View className="flex-row items-start justify-between gap-2">{titleBlock}</View>
         {statusBlock}
       </>
     );
 
     if (IS_WEB) {
       return (
-        <View
-          className={`bg-white rounded-[22px] p-5 mb-3 border border-gray-100/80 shadow-sm ${cardX}`}
-        >
-          {cardBody}
-        </View>
+        <WebCrmProjectCardWeb
+          cardX={cardX}
+          titleBlock={titleBlock}
+          statusBlock={statusBlock}
+          canManage={canManage}
+          expanded={webProjectMenuRowId === item.id}
+          onToggleExpand={() =>
+            setWebProjectMenuRowId(prev => (prev === item.id ? null : item.id))
+          }
+          onCollapse={() => setWebProjectMenuRowId(null)}
+          onView={() => setDetailProject(item)}
+          onEdit={() => openEdit(item)}
+          onDelete={() => void onDelete(item)}
+          t={t}
+        />
       );
     }
 
@@ -817,7 +976,14 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
         <FlatList
           data={displayedProjects}
           keyExtractor={p => p.id}
-          extraData={{ sortMode, filtersActive, filterDateFrom, filterCreatorId, filterStage }}
+          extraData={{
+            sortMode,
+            filtersActive,
+            filterDateFrom,
+            filterCreatorId,
+            filterStage,
+            webProjectMenuRowId,
+          }}
           renderItem={renderProject}
           contentContainerStyle={{
             paddingTop: 8,
