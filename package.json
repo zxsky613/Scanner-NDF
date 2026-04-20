@@ -9,7 +9,10 @@
     "android": "cross-env EXPO_OFFLINE=1 expo start --android --offline",
     "ios": "cross-env EXPO_OFFLINE=1 expo start --ios --offline",
     "web": "cross-env EXPO_OFFLINE=1 expo start --web --port 8082 --offline",
-    "build:web": "expo export --platform web"
+    "build:web": "expo export --platform web",
+    "eas:login": "eas login",
+    "eas:build:ios": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios --latest --profile production"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
@@ -54,6 +57,7 @@
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.10",
     "cross-env": "^10.1.0",
+    "eas-cli": "^16.28.0",
     "typescript": "~5.9.2"
   },
   "private": true

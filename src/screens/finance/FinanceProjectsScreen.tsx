@@ -14,11 +14,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { Profile, Project } from '../../types';
-import { useProjects, type ProjectFinanceFields } from '../../hooks/useProjects';
+import { useProjects, PROJECT_WITH_CREATOR, type ProjectFinanceFields } from '../../hooks/useProjects';
 import { supabase } from '../../config/supabase';
 import { computeNetMargin } from '../../lib/projectFinance';
 import { showAppAlert } from '../../utils/alert';
@@ -62,9 +62,10 @@ function financeAmountTextsFromProject(p: Project): FinanceAmountTexts {
   };
 }
 
-export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile }) => {
+export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navigation }) => {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const route = useRoute();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const {
@@ -148,6 +149,36 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile }) =>
       void fetchProjects();
       void loadExpenseSums();
     }, [fetchProjects, loadExpenseSums])
+  );
+
+  /** Ouvre la fiche finance depuis une notification (param `openProjectId` passé par l’onglet Alertes). */
+  useFocusEffect(
+    useCallback(() => {
+      const pid = (route.params as { openProjectId?: string } | undefined)?.openProjectId?.trim();
+      if (!pid) return undefined;
+      let cancelled = false;
+      void (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select(PROJECT_WITH_CREATOR)
+            .eq('id', pid)
+            .maybeSingle();
+          if (cancelled) return;
+          if (error || !data) {
+            showAppAlert(t('common.error'), t('notifications.projectOpenError'), 'error');
+          } else {
+            setDetailProject(data as Project);
+            await fetchProjects();
+          }
+        } finally {
+          navigation.setParams({ openProjectId: undefined } as never);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [route.params, navigation, fetchProjects, t])
   );
 
   useEffect(() => {

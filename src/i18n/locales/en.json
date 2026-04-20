@@ -163,8 +163,9 @@
     "popupIncompleteBody": "Please enter your first name, last name, email address and password to continue.",
     "popupPasswordTitle": "Password too short",
     "popupPasswordBody": "Your password must be at least 6 characters long. Please choose a longer one.",
-    "popupEmailExistsTitle": "Account already exists",
-    "popupEmailExistsBody": "An account is already linked to this email. Sign in or use a different email address.",
+    "popupEmailExistsTitle": "Email already in use",
+    "popupEmailExistsBody": "This email is already registered. Use the Sign in screen with this account, or another address to create a new account.",
+    "popupEmailExistsGoLogin": "Go to sign in",
     "popupLoginIncompleteTitle": "Missing information",
     "popupLoginIncompleteBody": "Please enter your email address and password.",
     "registerSuccess": "Registration successful! Check your email.",
@@ -372,9 +373,13 @@
     "deleteMessage": "It will be removed from your list permanently.",
     "new": "New",
     "tapToOpen": "View expense",
+    "tapToOpenProject": "View project",
+    "projectOpenError": "Could not open this project (missing or no access).",
+    "projectNavigationUnavailable": "Could not open the Finance tab from here.",
     "expenseUnavailableTitle": "Expense unavailable",
     "expenseUnavailableBody": "This expense no longer exists or you don’t have access to it.",
     "fallbackEmployee": "Team member",
+    "fallbackProjectCreator": "Owner",
     "types": {
       "expense_created": {
         "title": "New expense report",
@@ -393,6 +398,14 @@
       "expense_updated": {
         "title": "Expense updated",
         "body": "{{employee}} updated: {{supplier}}."
+      },
+      "project_created": {
+        "title": "New project",
+        "body": "{{creator}} — {{project}}"
+      },
+      "project_status_changed": {
+        "title": "Project status updated",
+        "body": "“{{project}}”: {{oldStatus}} → {{newStatus}}"
       }
     }
   },

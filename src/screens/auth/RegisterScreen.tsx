@@ -16,7 +16,7 @@ import { UserRole } from '../../types';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppNameText } from '../../components/AppNameText';
-import { showAppAlert } from '../../utils/alert';
+import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { isEmailAlreadyRegisteredError } from '../../utils/authErrors';
 import { theme, headerPaddingTop } from '../../config/theme';
 import { FINANCE_REGISTRATION_ACCESS_CODE } from '../../config/financeRegistration';
@@ -88,7 +88,13 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
       const { error } = await onRegister(mail, password, fullName, role);
       if (error) {
         if (isEmailAlreadyRegisteredError(error)) {
-          showAppAlert(t('auth.popupEmailExistsTitle'), t('auth.popupEmailExistsBody'), 'error');
+          const goLogin = await showAppConfirm(
+            t('auth.popupEmailExistsTitle'),
+            t('auth.popupEmailExistsBody'),
+            t('common.cancel'),
+            t('auth.popupEmailExistsGoLogin')
+          );
+          if (goLogin) navigation.goBack();
           return;
         }
         const raw =

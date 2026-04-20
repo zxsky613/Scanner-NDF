@@ -163,8 +163,9 @@
     "popupIncompleteBody": "Merci de renseigner le prénom, le nom, l’adresse e-mail et le mot de passe pour continuer.",
     "popupPasswordTitle": "Mot de passe trop court",
     "popupPasswordBody": "Votre mot de passe doit contenir au moins 6 caractères. Choisissez-en un plus long.",
-    "popupEmailExistsTitle": "Compte déjà existant",
-    "popupEmailExistsBody": "Un compte est déjà associé à cette adresse e-mail. Connectez-vous ou utilisez une autre adresse.",
+    "popupEmailExistsTitle": "E-mail déjà utilisé",
+    "popupEmailExistsBody": "Cette adresse e-mail est déjà enregistrée. Utilisez l’écran Connexion avec ce compte, ou une autre adresse pour créer un nouveau compte.",
+    "popupEmailExistsGoLogin": "Aller à la connexion",
     "popupLoginIncompleteTitle": "Informations manquantes",
     "popupLoginIncompleteBody": "Veuillez saisir votre adresse e-mail et votre mot de passe.",
     "registerSuccess": "Inscription réussie ! Vérifiez votre e-mail.",
@@ -372,9 +373,13 @@
     "deleteMessage": "Elle disparaîtra définitivement de votre liste.",
     "new": "Nouveau",
     "tapToOpen": "Voir la note",
+    "tapToOpenProject": "Voir le projet",
+    "projectOpenError": "Impossible d’ouvrir ce projet (introuvable ou accès refusé).",
+    "projectNavigationUnavailable": "Impossible d’ouvrir l’onglet Finance depuis cette vue.",
     "expenseUnavailableTitle": "Note introuvable",
     "expenseUnavailableBody": "Cette note de frais n’existe plus ou vous n’y avez pas accès.",
     "fallbackEmployee": "Employé",
+    "fallbackProjectCreator": "Responsable",
     "types": {
       "expense_created": {
         "title": "Nouvelle note de frais",
@@ -393,6 +398,14 @@
       "expense_updated": {
         "title": "Note modifiée",
         "body": "{{employee}} a mis à jour : {{supplier}}."
+      },
+      "project_created": {
+        "title": "Nouveau projet",
+        "body": "{{creator}} — {{project}}"
+      },
+      "project_status_changed": {
+        "title": "Statut projet modifié",
+        "body": "« {{project}} » : {{oldStatus}} → {{newStatus}}"
       }
     }
   },

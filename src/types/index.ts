@@ -135,7 +135,9 @@ export type NotificationType =
   | 'expense_created'
   | 'expense_updated'
   | 'expense_deleted'
-  | 'expense_reviewed';
+  | 'expense_reviewed'
+  | 'project_created'
+  | 'project_status_changed';
 
 export interface AppNotification {
   id: string;

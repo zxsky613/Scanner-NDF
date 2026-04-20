@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Linking from 'expo-linking';
 import { supabase } from '../config/supabase';
 import { getSignupEmailRedirectTo, handleSupabaseAuthDeepLink } from '../lib/authDeepLink';
+import { isSignUpObfuscatedDuplicateUser } from '../utils/authErrors';
 import { Profile, UserRole } from '../types';
 import { hasCrmAccess, hasExpenseManagementAccess, hasFinanceTabAccess } from '../lib/roles';
 import type { Session } from '@supabase/supabase-js';
@@ -144,7 +145,7 @@ export const useAuth = () => {
     try {
       const emailRedirectTo = getSignupEmailRedirectTo();
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -152,7 +153,15 @@ export const useAuth = () => {
           ...(emailRedirectTo ? { emailRedirectTo } : {}),
         },
       });
-      return { error };
+      if (error) return { error };
+
+      const user = data?.user ?? null;
+      const session = data?.session ?? null;
+      if (user && !session && isSignUpObfuscatedDuplicateUser(user)) {
+        return { error: { message: 'User already registered' } as { message: string } };
+      }
+
+      return { error: null };
     } catch (e: unknown) {
       return {
         error: e instanceof Error ? e : new Error('Network or configuration error'),

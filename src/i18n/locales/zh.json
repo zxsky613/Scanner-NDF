@@ -163,8 +163,9 @@
     "popupIncompleteBody": "请填写名、姓、电子邮箱和密码后再继续。",
     "popupPasswordTitle": "密码太短",
     "popupPasswordBody": "密码至少需要 6 个字符，请设置更长的密码。",
-    "popupEmailExistsTitle": "账户已存在",
-    "popupEmailExistsBody": "该邮箱已注册账户。请直接登录或使用其他邮箱。",
+    "popupEmailExistsTitle": "邮箱已被使用",
+    "popupEmailExistsBody": "该邮箱已注册。请使用「登录」页面登录此账号，或换用其他邮箱注册新账号。",
+    "popupEmailExistsGoLogin": "去登录",
     "popupLoginIncompleteTitle": "信息不完整",
     "popupLoginIncompleteBody": "请填写电子邮箱和密码。",
     "registerSuccess": "注册成功！请查收邮件。",
@@ -372,9 +373,13 @@
     "deleteMessage": "通知将从列表中永久移除。",
     "new": "新",
     "tapToOpen": "查看报销单",
+    "tapToOpenProject": "查看项目",
+    "projectOpenError": "无法打开该项目（不存在或无权访问）。",
+    "projectNavigationUnavailable": "无法从此处打开财务标签页。",
     "expenseUnavailableTitle": "无法打开单据",
     "expenseUnavailableBody": "该报销单已不存在或您无权访问。",
     "fallbackEmployee": "员工",
+    "fallbackProjectCreator": "负责人",
     "types": {
       "expense_created": {
         "title": "新报销申请",
@@ -393,6 +398,14 @@
       "expense_updated": {
         "title": "报销已修改",
         "body": "{{employee}} 已更新：{{supplier}}。"
+      },
+      "project_created": {
+        "title": "新项目",
+        "body": "{{creator}} — {{project}}"
+      },
+      "project_status_changed": {
+        "title": "项目阶段已更新",
+        "body": "「{{project}}」：{{oldStatus}} → {{newStatus}}"
       }
     }
   },

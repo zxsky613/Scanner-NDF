@@ -98,6 +98,26 @@ function enrichMetadataFromStoredText(
       }
       break;
     }
+    case 'project_created': {
+      if ((!str(out, 'project_name') || !str(out, 'creator_name')) && body) {
+        const m = body.match(/^(.+?)\s*[—–\-−]\s*(.+)$/);
+        if (m) {
+          if (!str(out, 'creator_name')) out.creator_name = m[1].trim();
+          if (!str(out, 'project_name')) out.project_name = m[2].trim();
+        }
+      }
+      break;
+    }
+    case 'project_status_changed': {
+      if ((!str(out, 'old_status') || !str(out, 'new_status')) && body) {
+        const m = body.match(/:\s*(\S+)\s*→\s*(\S+)\s*$/);
+        if (m) {
+          if (!str(out, 'old_status')) out.old_status = m[1].trim();
+          if (!str(out, 'new_status')) out.new_status = m[2].trim();
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -163,6 +183,35 @@ export function getLocalizedNotification(n: AppNotification, t: TFunction): { ti
         return {
           title: t('notifications.types.expense_updated.title'),
           body: t('notifications.types.expense_updated.body', { employee, supplier }),
+        };
+      }
+      break;
+    }
+    case 'project_created': {
+      const project = str(meta, 'project_name');
+      const creator = str(meta, 'creator_name') || t('notifications.fallbackProjectCreator');
+      if (project) {
+        return {
+          title: t('notifications.types.project_created.title'),
+          body: t('notifications.types.project_created.body', { creator, project }),
+        };
+      }
+      break;
+    }
+    case 'project_status_changed': {
+      const project = str(meta, 'project_name');
+      const oldS = str(meta, 'old_status');
+      const newS = str(meta, 'new_status');
+      if (project && oldS && newS) {
+        const oldLabel = t(`crm.statuses.${oldS}`, { defaultValue: oldS });
+        const newLabel = t(`crm.statuses.${newS}`, { defaultValue: newS });
+        return {
+          title: t('notifications.types.project_status_changed.title'),
+          body: t('notifications.types.project_status_changed.body', {
+            project,
+            oldStatus: oldLabel,
+            newStatus: newLabel,
+          }),
         };
       }
       break;

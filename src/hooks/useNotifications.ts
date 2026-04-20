@@ -139,15 +139,27 @@ export function useNotifications(
     async (id: string) => {
       if (!userId) return;
       const now = new Date().toISOString();
-      const { error } = await supabase.from('notifications').update({ read_at: now }).eq('id', id);
-      if (error && isNotificationsTableMissing(error)) return;
-      if (!error) {
-        setNotifications(prev =>
-          prev.map(n => (n.id === id ? { ...n, read_at: now } : n))
-        );
+      setNotifications(p => p.map(n => (n.id === id ? { ...n, read_at: now } : n)));
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ read_at: now })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select('id');
+
+      if (error && isNotificationsTableMissing(error)) {
+        await fetchNotifications();
+        return;
+      }
+      if (error || !data?.length) {
+        if (!error && __DEV__) {
+          console.warn('[markRead] aucune ligne mise à jour pour la notification', id);
+        }
+        await fetchNotifications();
       }
     },
-    [userId]
+    [userId, fetchNotifications]
   );
 
   const markAllRead = useCallback(async () => {

@@ -18,6 +18,10 @@ import { useNotificationsContext } from '../../context/NotificationsContext';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { getLocalizedNotification } from '../../utils/notificationDisplay';
 import { notificationNeedsAttention } from '../../utils/notificationAttention';
+import {
+  getNotificationProjectId,
+  notificationOpensProjectDetail,
+} from '../../utils/notificationProject';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
@@ -68,6 +72,8 @@ const notificationVisual: Record<
   expense_updated: { icon: '✏️', iconBg: 'bg-amber-50' },
   expense_deleted: { icon: '🗑️', iconBg: 'bg-gray-100' },
   expense_reviewed: { icon: '📬', iconBg: 'bg-primary-50' },
+  project_created: { icon: '📁', iconBg: 'bg-sky-50' },
+  project_status_changed: { icon: '🔄', iconBg: 'bg-violet-50' },
 };
 
 type ListRow =
@@ -129,19 +135,35 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     await deleteNotification(n.id);
   };
 
-  const onPressNotification = async (id: string, expenseId: string | null) => {
-    await markRead(id);
-    if (!expenseId) return;
-    const expense = await fetchExpenseForDetail(expenseId);
-    if (!expense) {
-      showAppAlert(
-        t('notifications.expenseUnavailableTitle'),
-        t('notifications.expenseUnavailableBody'),
-        'error'
-      );
+  const onPressNotification = async (n: AppNotification) => {
+    await markRead(n.id);
+
+    if (n.expense_id) {
+      const expense = await fetchExpenseForDetail(n.expense_id);
+      if (!expense) {
+        showAppAlert(
+          t('notifications.expenseUnavailableTitle'),
+          t('notifications.expenseUnavailableBody'),
+          'error'
+        );
+        return;
+      }
+      navigation.navigate('ExpenseDetail', { expense });
       return;
     }
-    navigation.navigate('ExpenseDetail', { expense });
+
+    const projectId = getNotificationProjectId(n);
+    if (projectId && notificationOpensProjectDetail(n)) {
+      const tabNav = navigation.getParent();
+      if (tabNav && typeof (tabNav as { navigate?: unknown }).navigate === 'function') {
+        (tabNav as { navigate: (name: string, params?: Record<string, unknown>) => void }).navigate(
+          'FinanceTab',
+          { screen: 'FinanceHome', params: { openProjectId: projectId } }
+        );
+      } else {
+        showAppAlert(t('common.error'), t('notifications.projectNavigationUnavailable'), 'error');
+      }
+    }
   };
 
   const header = (
@@ -258,7 +280,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity
           className="flex-1 flex-row items-center p-4 min-w-0"
           activeOpacity={0.88}
-          onPress={() => void onPressNotification(n.id, n.expense_id)}
+          onPress={() => void onPressNotification(n)}
         >
           <View
             className={`w-14 h-14 rounded-2xl items-center justify-center border border-gray-100 ${vis.iconBg}`}
@@ -282,7 +304,11 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
             ) : null}
             <Text className="text-gray-300 text-[11px] font-medium mt-1">
               {formatDate(n.created_at)}
-              {n.expense_id ? ` · ${t('notifications.tapToOpen')}` : ''}
+              {n.expense_id
+                ? ` · ${t('notifications.tapToOpen')}`
+                : notificationOpensProjectDetail(n)
+                  ? ` · ${t('notifications.tapToOpenProject')}`
+                  : ''}
             </Text>
           </View>
           <Text className="text-primary-600 text-lg font-medium pl-1">›</Text>

@@ -23,8 +23,9 @@ import { Calendar } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Expense, ExpenseCategory, ExpenseFilters, Profile } from '../../types';
+import { Expense, ExpenseCategory, ExpenseFilters, ExpenseProjectFilter, Profile } from '../../types';
 import { useExpenses } from '../../hooks/useExpenses';
+import { useProjects } from '../../hooks/useProjects';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { AppNameText } from '../../components/AppNameText';
@@ -73,7 +74,8 @@ function filtersNonEmpty(f: ExpenseFilters): boolean {
     f.category ||
     f.date_from ||
     f.date_to ||
-    (f.supplier_search && f.supplier_search.trim())
+    (f.supplier_search && f.supplier_search.trim()) ||
+    (f.project_filter && f.project_filter !== 'all')
   );
 }
 
@@ -350,13 +352,15 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const { expenses, refreshing, fetchExpenses, deleteExpense } = useExpenses(profile.id);
+  const { projects: filterProjects, fetchProjects: fetchFilterProjects } = useProjects();
   const [listFilters, setListFilters] = useState<ExpenseFilters>({});
   const [filterModalOpen, setFilterModalOpen] = useState(false);
-  /** Même feuille que l’admin : calendrier dans le modal (pas de 2e modal). */
-  const [filterModalView, setFilterModalView] = useState<'main' | 'date'>('main');
+  /** Même feuille que l’admin : calendrier / liste projet dans le modal (pas de 2e modal). */
+  const [filterModalView, setFilterModalView] = useState<'main' | 'date' | 'project'>('main');
   const [draftCategory, setDraftCategory] = useState<ExpenseCategory | 'all'>('all');
   const [draftDate, setDraftDate] = useState('');
   const [draftSupplier, setDraftSupplier] = useState('');
+  const [draftProjectFilter, setDraftProjectFilter] = useState<ExpenseProjectFilter>('all');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -396,6 +400,8 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
     const d = listFilters.date_from ?? listFilters.date_to ?? '';
     setDraftDate(d);
     setDraftSupplier(listFilters.supplier_search ?? '');
+    setDraftProjectFilter(listFilters.project_filter ?? 'all');
+    void fetchFilterProjects();
     setFilterModalOpen(true);
   };
 
@@ -419,6 +425,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
     }
     const s = draftSupplier.trim();
     if (s) f.supplier_search = s;
+    if (draftProjectFilter !== 'all') f.project_filter = draftProjectFilter;
     setListFilters(f);
     setFilterModalView('main');
     setFilterModalOpen(false);
@@ -439,6 +446,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
     setDraftCategory('all');
     setDraftDate('');
     setDraftSupplier('');
+    setDraftProjectFilter('all');
     setFilterModalView('main');
     setFilterModalOpen(false);
     void fetchExpenses({});
@@ -709,7 +717,16 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                         </View>
                       ) : null}
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setListFilters({})}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setListFilters({});
+                        setDraftCategory('all');
+                        setDraftDate('');
+                        setDraftSupplier('');
+                        setDraftProjectFilter('all');
+                        void fetchExpenses({});
+                      }}
+                    >
                       <Text style={{ color: theme.brandPrimary, fontWeight: '500', fontSize: 14 }}>
                         {t('employee.viewAll')}
                       </Text>
@@ -915,7 +932,81 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   : 'bg-white rounded-t-[28px] border-t border-gray-100 max-h-[88%]'
               }
             >
-              {filterModalView === 'main' ? (
+              {filterModalView === 'project' ? (
+                <>
+                  <View className="px-6 pt-5 pb-3 border-b border-gray-100">
+                    <TouchableOpacity
+                      className="self-start py-1 mb-2"
+                      onPress={() => setFilterModalView('main')}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.back')}
+                    >
+                      <Text className="text-primary-600 font-semibold text-base">← {t('common.back')}</Text>
+                    </TouchableOpacity>
+                    <Text className="text-xl font-bold" style={{ color: theme.brandInk }}>
+                      {t('admin.filterByProject')}
+                    </Text>
+                  </View>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 }}
+                    style={{ maxHeight: IS_WEB ? 360 : 420 }}
+                  >
+                    <TouchableOpacity
+                      className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                      onPress={() => {
+                        setDraftProjectFilter('all');
+                        setFilterModalView('main');
+                      }}
+                    >
+                      <Text
+                        className={`text-base ${
+                          draftProjectFilter === 'all' ? 'font-bold' : 'font-medium text-gray-900'
+                        }`}
+                        style={draftProjectFilter === 'all' ? { color: theme.brandPrimary } : undefined}
+                      >
+                        {t('common.all')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                      onPress={() => {
+                        setDraftProjectFilter('daily');
+                        setFilterModalView('main');
+                      }}
+                    >
+                      <Text
+                        className={`text-base ${
+                          draftProjectFilter === 'daily' ? 'font-bold' : 'font-medium text-gray-900'
+                        }`}
+                        style={draftProjectFilter === 'daily' ? { color: theme.brandPrimary } : undefined}
+                      >
+                        {t('expense.projectDaily')}
+                      </Text>
+                    </TouchableOpacity>
+                    {filterProjects.map(pr => (
+                      <TouchableOpacity
+                        key={pr.id}
+                        className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setDraftProjectFilter(pr.id);
+                          setFilterModalView('main');
+                        }}
+                      >
+                        <Text
+                          className={`text-base ${
+                            draftProjectFilter === pr.id ? 'font-bold' : 'font-medium text-gray-900'
+                          }`}
+                          style={draftProjectFilter === pr.id ? { color: theme.brandPrimary } : undefined}
+                          numberOfLines={2}
+                        >
+                          {pr.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : filterModalView === 'main' ? (
                 <ScrollView
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 }}
@@ -965,12 +1056,34 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   <Text className="text-gray-400 text-xs mb-5 leading-4">{t('employee.filterDateHint')}</Text>
                   <Text className="text-gray-700 font-medium mb-2">{t('expense.supplier')}</Text>
                   <TextInput
-                    className="bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900 mb-6"
+                    className="bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900 mb-5"
                     value={draftSupplier}
                     onChangeText={setDraftSupplier}
                     placeholder={t('employee.filterSupplierPlaceholder')}
                     autoCapitalize="none"
                   />
+                  <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByProject')}</Text>
+                  <Text className="text-gray-500 text-xs mb-2 leading-4">{t('admin.filterProjectHint')}</Text>
+                  <TouchableOpacity
+                    className="bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 mb-6 flex-row items-center justify-between active:opacity-80"
+                    onPress={() => setFilterModalView('project')}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.selectProjectPlaceholder')}
+                  >
+                    <Text
+                      className={`text-base flex-1 pr-2 ${
+                        draftProjectFilter !== 'all' ? 'text-gray-900 font-medium' : 'text-gray-400'
+                      }`}
+                      numberOfLines={2}
+                    >
+                      {draftProjectFilter === 'all'
+                        ? t('admin.selectProjectPlaceholder')
+                        : draftProjectFilter === 'daily'
+                          ? t('expense.projectDaily')
+                          : filterProjects.find(pr => pr.id === draftProjectFilter)?.name ?? draftProjectFilter}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={20} color={theme.inkMuted} />
+                  </TouchableOpacity>
                   <View className="flex-row gap-3">
                     <TouchableOpacity
                       className="flex-1 border border-gray-200 rounded-full py-3.5 items-center bg-surface"
@@ -986,7 +1099,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
-              ) : (
+              ) : filterModalView === 'date' ? (
                 <>
                   <View className="px-6 pt-5 pb-3 border-b border-gray-100">
                     <TouchableOpacity
@@ -1039,7 +1152,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                     </TouchableOpacity>
                   </View>
                 </>
-              )}
+              ) : null}
             </View>
           </View>
         </KeyboardAvoidingView>

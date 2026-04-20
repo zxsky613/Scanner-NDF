@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase';
 import type { Project, ProjectCategory, ProjectStatus } from '../types';
 
 /** Jointure créateur ; nom de contrainte FK par défaut PostgreSQL. */
-const PROJECT_WITH_CREATOR =
+export const PROJECT_WITH_CREATOR =
   '*, creator:profiles!projects_created_by_fkey(id, full_name, email)';
 
 export type NewProjectInput = {

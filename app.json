@@ -14,21 +14,26 @@
       "backgroundColor": "#F2F6F8"
     },
     "ios": {
+      "bundleIdentifier": "com.dabartechnique",
+      "buildNumber": "3",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "L'application a besoin d'accéder à votre caméra pour scanner les tickets de caisse.",
-        "NSPhotoLibraryUsageDescription": "L'application a besoin d'accéder à vos photos pour importer des justificatifs."
+        "NSPhotoLibraryUsageDescription": "L'application a besoin d'accéder à vos photos pour importer des justificatifs.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.dabartechnique",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F2F6F8"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -49,6 +54,11 @@
       ],
       "expo-localization",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0490563d-6da0-4616-8bd6-5f3263077bf4"
+      }
+    }
   }
 }
