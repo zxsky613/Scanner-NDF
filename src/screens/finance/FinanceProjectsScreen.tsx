@@ -38,6 +38,14 @@ import {
   formatAmountThousandsSpaces,
   parseLocaleAmount,
 } from '../../utils/formatAmountInput';
+import { formatDate } from '../../utils/dateFormat';
+
+type ValidatedExpenseRow = {
+  id: string;
+  supplier: string;
+  receipt_date: string;
+  amount_ttc: number;
+};
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -81,6 +89,10 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
   const [draftById, setDraftById] = useState<Record<string, ProjectFinanceFields>>({});
   const [amountTextsById, setAmountTextsById] = useState<Record<string, FinanceAmountTexts>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [validatedListModalOpen, setValidatedListModalOpen] = useState(false);
+  const [validatedListProject, setValidatedListProject] = useState<Project | null>(null);
+  const [validatedListRows, setValidatedListRows] = useState<ValidatedExpenseRow[]>([]);
+  const [validatedListLoading, setValidatedListLoading] = useState(false);
 
   const loadExpenseSums = useCallback(async () => {
     const { data, error } = await supabase
@@ -191,6 +203,42 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
       setDetailProject(null);
     }
   }, [detailProject, projects]);
+
+  useEffect(() => {
+    if (!detailProject) {
+      setValidatedListModalOpen(false);
+      setValidatedListProject(null);
+      setValidatedListRows([]);
+    }
+  }, [detailProject]);
+
+  const openValidatedExpenseDetail = useCallback(async (p: Project) => {
+    setValidatedListProject(p);
+    setValidatedListModalOpen(true);
+    setValidatedListLoading(true);
+    setValidatedListRows([]);
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id, supplier, receipt_date, amount_ttc')
+      .eq('project_id', p.id)
+      .eq('status', 'approved')
+      .order('receipt_date', { ascending: false });
+    setValidatedListLoading(false);
+    if (error) {
+      showAppAlert(t('common.error'), (error as { message?: string }).message ?? String(error), 'error');
+      setValidatedListModalOpen(false);
+      setValidatedListProject(null);
+      return;
+    }
+    setValidatedListRows(
+      (data ?? []).map(row => ({
+        id: row.id as string,
+        supplier: String((row as { supplier?: string }).supplier ?? '').trim() || '—',
+        receipt_date: String((row as { receipt_date?: string }).receipt_date ?? ''),
+        amount_ttc: Number((row as { amount_ttc?: number }).amount_ttc ?? 0),
+      }))
+    );
+  }, [t]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -405,11 +453,24 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
             }}
           />
         </View>
-        <View className="bg-gray-50 rounded-xl p-3 mt-4">
-          <Text className="text-xs text-gray-500">{t('finance.validatedExpensesSum')}</Text>
-          <Text className="text-base font-semibold text-gray-900 mt-0.5">{formatMoney(expSum)}</Text>
-          <Text className="text-xs text-gray-400 mt-2">{t('finance.approvedMeansValidated')}</Text>
-          <Text className="text-xs text-gray-500 font-semibold uppercase mt-3">{t('finance.netMargin')}</Text>
+        <Pressable
+          onPress={() => void openValidatedExpenseDetail(p)}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('finance.validatedExpensesSum')}. ${t('finance.validatedExpensesTapForDetail')}`}
+          className="bg-gray-50 rounded-xl p-3 mt-4 border border-gray-100 active:opacity-80"
+        >
+          <View className="flex-row items-start justify-between gap-2">
+            <View className="flex-1 min-w-0">
+              <Text className="text-xs text-gray-500">{t('finance.validatedExpensesSum')}</Text>
+              <Text className="text-base font-semibold text-gray-900 mt-0.5">{formatMoney(expSum)}</Text>
+              <Text className="text-xs text-gray-400 mt-2">{t('finance.approvedMeansValidated')}</Text>
+              <Text className="text-xs text-primary-600 font-medium mt-1.5">{t('finance.validatedExpensesTapForDetail')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={theme.brandPrimary} style={{ marginTop: 2 }} />
+          </View>
+        </Pressable>
+        <View className="mt-3">
+          <Text className="text-xs text-gray-500 font-semibold uppercase">{t('finance.netMargin')}</Text>
           <Text
             className={`text-lg font-bold mt-0.5 ${
               margin != null && margin < 0 ? 'text-red-600' : 'text-primary-700'
@@ -432,6 +493,48 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
       </ScrollView>
     );
   };
+
+  /** Affiché dans le même Modal que la fiche (évite un 2e Modal, non fiable sur iOS / TestFlight). */
+  const renderValidatedExpensePanel = () => (
+    <View className="flex-1 min-h-[280px]" style={{ minHeight: 280 }}>
+      {validatedListLoading ? (
+        <View className="flex-1 py-14 items-center justify-center">
+          <ActivityIndicator color={theme.brandPrimary} />
+        </View>
+      ) : validatedListRows.length === 0 ? (
+        <Text className="text-gray-500 text-center py-12 px-6">{t('finance.validatedExpensesModalEmpty')}</Text>
+      ) : (
+        <FlatList
+          data={validatedListRows}
+          keyExtractor={item => item.id}
+          keyboardShouldPersistTaps="handled"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }}
+          renderItem={({ item }) => {
+            const dateLine =
+              item.receipt_date && /^\d{4}-\d{2}-\d{2}/.test(item.receipt_date)
+                ? formatDate(item.receipt_date.slice(0, 10))
+                : item.receipt_date
+                  ? formatDate(item.receipt_date)
+                  : '—';
+            return (
+              <View className="flex-row justify-between items-start gap-3 py-3 border-b border-gray-100">
+                <View className="flex-1 min-w-0 pr-2">
+                  <Text className="text-gray-900 font-medium" numberOfLines={2}>
+                    {item.supplier}
+                  </Text>
+                  <Text className="text-gray-500 text-xs mt-1">
+                    {t('expense.receiptDate')}: {dateLine}
+                  </Text>
+                </View>
+                <Text className="text-gray-900 font-semibold shrink-0">{formatMoney(item.amount_ttc)}</Text>
+              </View>
+            );
+          }}
+        />
+      )}
+    </View>
+  );
 
   const renderListItem = ({ item: p }: { item: Project }) => {
     const draft = draftById[p.id];
@@ -565,36 +668,72 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
         animationType="slide"
         transparent
         onRequestClose={() => {
-          if (!savingId) setDetailProject(null);
+          if (validatedListModalOpen) setValidatedListModalOpen(false);
+          else if (!savingId) setDetailProject(null);
         }}
       >
         <View className="flex-1" style={modalShellStyle}>
           <Pressable
             className="absolute inset-0 bg-black/40"
             onPress={() => {
-              if (!savingId) setDetailProject(null);
+              if (validatedListModalOpen) setValidatedListModalOpen(false);
+              else if (!savingId) setDetailProject(null);
             }}
             disabled={!!savingId}
             style={Platform.OS === 'web' && savingId ? { pointerEvents: 'none' as const } : undefined}
           />
-          <View className="bg-white rounded-t-[28px] border border-gray-100" style={modalCardStyle}>
-            <View className="flex-row items-center border-b border-gray-100 px-4 py-3">
+          <View
+            className="bg-white rounded-t-[28px] border border-gray-100 overflow-hidden flex-1"
+            style={[modalCardStyle, { minHeight: 0 }]}
+          >
+            <View className="flex-row items-center border-b border-gray-100 px-3 py-3">
               <TouchableOpacity
                 onPress={() => {
-                  if (!savingId) setDetailProject(null);
+                  if (validatedListModalOpen) setValidatedListModalOpen(false);
+                  else if (!savingId) setDetailProject(null);
                 }}
                 disabled={!!savingId}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
-                accessibilityLabel={t('finance.backToList')}
+                accessibilityLabel={
+                  validatedListModalOpen ? t('common.back') : t('finance.backToList')
+                }
               >
                 <Ionicons name="chevron-back" size={26} color={theme.brandInk} />
               </TouchableOpacity>
-              <Text className="flex-1 text-center text-base font-bold text-gray-900 pr-8" numberOfLines={1}>
-                {t('finance.detailModalTitle')}
-              </Text>
+              <View className="flex-1 px-2 min-w-0">
+                <Text
+                  className="text-center text-base font-bold text-gray-900"
+                  numberOfLines={validatedListModalOpen ? 2 : 1}
+                >
+                  {validatedListModalOpen
+                    ? t('finance.validatedExpensesModalTitle')
+                    : t('finance.detailModalTitle')}
+                </Text>
+                {validatedListModalOpen && validatedListProject ? (
+                  <Text className="text-center text-xs text-gray-500 mt-0.5" numberOfLines={2}>
+                    {validatedListProject.name}
+                  </Text>
+                ) : null}
+              </View>
+              {validatedListModalOpen ? (
+                <TouchableOpacity
+                  onPress={() => setValidatedListModalOpen(false)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                >
+                  <Ionicons name="close" size={26} color={theme.brandInk} />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 26 }} />
+              )}
             </View>
-            {activeFinanceProject ? renderFinanceForm(activeFinanceProject) : null}
+            {validatedListModalOpen && validatedListProject ? (
+              renderValidatedExpensePanel()
+            ) : activeFinanceProject ? (
+              renderFinanceForm(activeFinanceProject)
+            ) : null}
           </View>
         </View>
       </Modal>
