@@ -24,9 +24,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
-    /* Password login : évite des blocages PKCE / hash sur le web */
+    /** Sur le web, le PKCE peut poser problème avec les redirections/hash ; natif utilise PKCE pour les liens e-mail (?code=). */
     detectSessionInUrl: false,
-    flowType: 'implicit',
+    flowType: Platform.OS === 'web' ? 'implicit' : 'pkce',
     /**
      * Sur iOS/Android, forcer un verrou in-process évite les courses avec
      * l’API Web Locks (vol de verrou / "steal") si l’environnement expose

@@ -11,6 +11,7 @@ import { theme } from './src/config/theme';
 import { applyPoppinsAsDefaultText } from './src/lib/applyDefaultFont';
 import { useAuth } from './src/hooks/useAuth';
 import { AuthNavigator, MainNavigator } from './src/navigation/AppNavigator';
+import { rootNavigationLinking } from './src/navigation/rootLinking';
 import { AppAlertModalHost } from './src/components/AppAlertModalHost';
 import { BrandLogo } from './src/components/BrandLogo';
 import { IS_WEB, webAppShellInner, webAppShellOuter } from './src/config/webLayout';
@@ -35,6 +36,7 @@ const AppContent: React.FC = () => {
     signIn,
     signUp,
     signOut,
+    deleteAccount,
     isAdmin,
     isCrmAccess,
     isFinanceTabAccess,
@@ -64,6 +66,7 @@ const AppContent: React.FC = () => {
       isCrmAccess={isCrmAccess}
       isFinanceTabAccess={isFinanceTabAccess}
       onLogout={signOut}
+      onDeleteAccount={deleteAccount}
     />
   );
 };
@@ -104,7 +107,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer theme={IS_WEB ? webNavigationTheme : DefaultTheme}>
+        <NavigationContainer linking={rootNavigationLinking} theme={IS_WEB ? webNavigationTheme : DefaultTheme}>
           {IS_WEB ? (
             <View style={webAppShellOuter}>
               <View style={webAppShellInner}>

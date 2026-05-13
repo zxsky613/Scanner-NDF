@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.dabartechnique",
-      "buildNumber": "7",
+      "buildNumber": "12",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "L'application a besoin d'accéder à votre caméra pour scanner les tickets de caisse.",

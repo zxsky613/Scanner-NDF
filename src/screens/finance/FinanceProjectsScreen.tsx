@@ -18,7 +18,11 @@ import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { Profile, Project } from '../../types';
-import { useProjects, PROJECT_WITH_CREATOR, type ProjectFinanceFields } from '../../hooks/useProjects';
+import {
+  useProjects,
+  PROJECT_WITH_CREATOR,
+  type ProjectFinanceFields,
+} from '../../hooks/useProjects';
 import { supabase } from '../../config/supabase';
 import { computeNetMargin } from '../../lib/projectFinance';
 import { showAppAlert } from '../../utils/alert';
@@ -70,6 +74,39 @@ function financeAmountTextsFromProject(p: Project): FinanceAmountTexts {
   };
 }
 
+/** Année civile de création du projet (pour regroupement des totaux marge). */
+function projectCreationYear(p: Project): number {
+  const d = new Date(p.created_at);
+  return Number.isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+}
+
+function formatProjectTimestamp(iso: string | undefined): string {
+  if (!iso?.trim()) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : formatDate(iso.trim().slice(0, 10));
+}
+
+function nz(v: number | null | undefined): number {
+  return v != null && !Number.isNaN(Number(v)) ? Number(v) : 0;
+}
+
+function fixedCostsTotal(p: Project, draft: ProjectFinanceFields | undefined): number {
+  return (
+    nz(draft?.cost_labor ?? p.cost_labor) +
+    nz(draft?.cost_rent ?? p.cost_rent) +
+    nz(draft?.cost_materials ?? p.cost_materials)
+  );
+}
+
+/** Notes approuvées TTC + coûts fixes (aligné avec le calcul de marge nette). */
+function totalExpenseOutflow(
+  p: Project,
+  draft: ProjectFinanceFields | undefined,
+  validatedNotesTtcSum: number
+): number {
+  return fixedCostsTotal(p, draft) + validatedNotesTtcSum;
+}
+
 export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navigation }) => {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -93,6 +130,24 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
   const [validatedListProject, setValidatedListProject] = useState<Project | null>(null);
   const [validatedListRows, setValidatedListRows] = useState<ValidatedExpenseRow[]>([]);
   const [validatedListLoading, setValidatedListLoading] = useState(false);
+
+  const [marginByYearModalOpen, setMarginByYearModalOpen] = useState(false);
+  const [marginYearPickerOpen, setMarginYearPickerOpen] = useState(false);
+  const [marginByYearSelected, setMarginByYearSelected] = useState<number[]>([]);
+  const [marginByYearResults, setMarginByYearResults] = useState<
+    | {
+        year: number;
+        total: number;
+        /** Coûts fixes + notes validées TTC, par projet créé cette année, puis sommé. */
+        totalExpenseTtc: number;
+        /** Somme des montants devis / contrat des projets créés cette année. */
+        totalDevis: number;
+        withMarginCount: number;
+        missingContractCount: number;
+        projectsInYear: number;
+      }[]
+    | null
+  >(null);
 
   const loadExpenseSums = useCallback(async () => {
     const { data, error } = await supabase
@@ -295,6 +350,96 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
     });
   }, [projects, i18n.language]);
 
+  /** Uniquement les années où au moins un projet existe (année de création). */
+  const yearPickerOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of projects) set.add(projectCreationYear(p));
+    return Array.from(set).sort((a, b) => b - a);
+  }, [projects]);
+
+  useEffect(() => {
+    if (!marginByYearModalOpen) setMarginYearPickerOpen(false);
+  }, [marginByYearModalOpen]);
+
+  const openMarginByYearModal = useCallback(() => {
+    setMarginYearPickerOpen(false);
+    setMarginByYearSelected(
+      yearPickerOptions.length ? [...yearPickerOptions].sort((a, b) => b - a) : []
+    );
+    setMarginByYearResults(null);
+    setMarginByYearModalOpen(true);
+  }, [yearPickerOptions]);
+
+  const toggleMarginYear = useCallback((y: number) => {
+    setMarginByYearSelected(prev =>
+      prev.includes(y) ? prev.filter(x => x !== y).sort((a, b) => b - a) : [...prev, y].sort((a, b) => b - a)
+    );
+  }, []);
+
+  const runMarginByYearCalculate = useCallback(() => {
+    if (marginByYearSelected.length === 0) {
+      showAppAlert(t('common.error'), t('finance.marginByYearNoneSelected'), 'error');
+      return;
+    }
+    const yearsSorted = [...marginByYearSelected].sort((a, b) => a - b);
+    const rows = yearsSorted.map(year => {
+      let total = 0;
+      let totalExpenseTtc = 0;
+      let totalDevis = 0;
+      let withMarginCount = 0;
+      let missingContractCount = 0;
+      let projectsInYear = 0;
+      for (const p of projects) {
+        if (projectCreationYear(p) !== year) continue;
+        projectsInYear += 1;
+        const draft = draftById[p.id];
+        const expSum = validatedSumByProject[p.id] ?? 0;
+        const ca = draft?.contract_amount ?? p.contract_amount;
+        if (ca != null && !Number.isNaN(Number(ca))) totalDevis += Number(ca);
+        totalExpenseTtc += totalExpenseOutflow(p, draft, expSum);
+        const m = computeNetMargin({
+          contractAmount: draft?.contract_amount ?? p.contract_amount,
+          costLabor: draft?.cost_labor ?? p.cost_labor,
+          costRent: draft?.cost_rent ?? p.cost_rent,
+          costMaterials: draft?.cost_materials ?? p.cost_materials,
+          validatedExpensesTtcSum: expSum,
+        });
+        if (m === null) missingContractCount += 1;
+        else {
+          total += m;
+          withMarginCount += 1;
+        }
+      }
+      return {
+        year,
+        total,
+        totalExpenseTtc,
+        totalDevis,
+        withMarginCount,
+        missingContractCount,
+        projectsInYear,
+      };
+    });
+    setMarginByYearResults(rows);
+  }, [marginByYearSelected, projects, draftById, validatedSumByProject, t]);
+
+  const marginByYearGrandTotal = useMemo(
+    () =>
+      marginByYearResults?.reduce((s, r) => s + r.total, 0) ?? null,
+    [marginByYearResults]
+  );
+
+  const marginByYearGrandExpenseTotal = useMemo(
+    () =>
+      marginByYearResults?.reduce((s, r) => s + r.totalExpenseTtc, 0) ?? null,
+    [marginByYearResults]
+  );
+
+  const marginByYearGrandDevisTotal = useMemo(
+    () => marginByYearResults?.reduce((s, r) => s + r.totalDevis, 0) ?? null,
+    [marginByYearResults]
+  );
+
   const activeFinanceProject = useMemo(() => {
     if (!detailProject) return null;
     return sorted.find(p => p.id === detailProject.id) ?? detailProject;
@@ -359,6 +504,16 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
       }
     : { maxHeight: '92%' as const };
 
+  const marginYearModalCardStyle = IS_WEB
+    ? {
+        borderRadius: 24,
+        maxHeight: '88%' as const,
+        maxWidth: 480,
+        width: '100%' as const,
+        alignSelf: 'center' as const,
+      }
+    : { maxHeight: '88%' as const, width: '100%' as const };
+
   const inputCls =
     'border border-gray-200 rounded-xl px-3 py-2 text-gray-900 bg-white text-base';
   const labelCls = 'text-gray-500 text-xs font-semibold uppercase tracking-wide mb-1';
@@ -367,6 +522,7 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
     const draft = draftById[p.id];
     const amt = amountTextsById[p.id];
     const expSum = validatedSumByProject[p.id] ?? 0;
+    const expenseTotalOutflow = totalExpenseOutflow(p, draft, expSum);
     const margin = computeNetMargin({
       contractAmount: draft?.contract_amount ?? p.contract_amount,
       costLabor: draft?.cost_labor ?? p.cost_labor,
@@ -382,6 +538,12 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
         showsVerticalScrollIndicator
       >
         <Text className="text-lg font-bold text-gray-900 mb-1">{p.name}</Text>
+        <Text className="text-xs text-gray-500 mb-1">
+          {t('finance.projectCreated')}: {formatProjectTimestamp(p.created_at)}
+        </Text>
+        <Text className="text-xs text-gray-500 mb-3">
+          {t('finance.projectUpdated')}: {formatProjectTimestamp(p.updated_at)}
+        </Text>
         <Text className="text-sm text-gray-500 mb-4">
           {t(`crm.statuses.${p.status}`)} · {formatMoney(draft?.contract_amount ?? p.contract_amount)}
         </Text>
@@ -453,21 +615,26 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
             }}
           />
         </View>
+        <View className="rounded-xl p-4 mt-4 border border-gray-200 bg-white">
+          <Text className={labelCls}>{t('finance.validatedExpensesSum')}</Text>
+          <Text className="text-lg font-semibold text-gray-900 mt-1">{formatMoney(expSum)}</Text>
+          <Text className="text-xs text-gray-400 mt-2">{t('finance.projectExpenseNotesHint')}</Text>
+        </View>
+        <View className="bg-gray-50 rounded-xl p-4 mt-3 border border-gray-100">
+          <Text className={labelCls}>{t('finance.totalExpenses')}</Text>
+          <Text className="text-xl font-bold text-gray-900 mt-1">{formatMoney(expenseTotalOutflow)}</Text>
+          <Text className="text-xs text-gray-400 mt-2">{t('finance.totalExpensesExplanation')}</Text>
+        </View>
         <Pressable
           onPress={() => void openValidatedExpenseDetail(p)}
           accessibilityRole="button"
           accessibilityLabel={`${t('finance.validatedExpensesSum')}. ${t('finance.validatedExpensesTapForDetail')}`}
-          className="bg-gray-50 rounded-xl p-3 mt-4 border border-gray-100 active:opacity-80"
+          className="flex-row items-center justify-between mt-3 py-3 px-1 rounded-xl active:bg-gray-50 active:opacity-90"
         >
-          <View className="flex-row items-start justify-between gap-2">
-            <View className="flex-1 min-w-0">
-              <Text className="text-xs text-gray-500">{t('finance.validatedExpensesSum')}</Text>
-              <Text className="text-base font-semibold text-gray-900 mt-0.5">{formatMoney(expSum)}</Text>
-              <Text className="text-xs text-gray-400 mt-2">{t('finance.approvedMeansValidated')}</Text>
-              <Text className="text-xs text-primary-600 font-medium mt-1.5">{t('finance.validatedExpensesTapForDetail')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={22} color={theme.brandPrimary} style={{ marginTop: 2 }} />
-          </View>
+          <Text className="text-sm text-primary-600 font-semibold flex-1 mr-2">
+            {t('finance.validatedExpensesTapForDetail')}
+          </Text>
+          <Ionicons name="chevron-forward" size={22} color={theme.brandPrimary} />
         </Pressable>
         <View className="mt-3">
           <Text className="text-xs text-gray-500 font-semibold uppercase">{t('finance.netMargin')}</Text>
@@ -539,6 +706,7 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
   const renderListItem = ({ item: p }: { item: Project }) => {
     const draft = draftById[p.id];
     const expSum = validatedSumByProject[p.id] ?? 0;
+    const expenseTotalOutflow = totalExpenseOutflow(p, draft, expSum);
     const margin = computeNetMargin({
       contractAmount: draft?.contract_amount ?? p.contract_amount,
       costLabor: draft?.cost_labor ?? p.cost_labor,
@@ -564,11 +732,21 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
               {t('crm.projectStage')}:{' '}
               <Text className="font-medium text-gray-800">{t(`crm.statuses.${p.status}`)}</Text>
             </Text>
+            <Text className="text-gray-400 text-[11px] mt-1.5 leading-4">
+              {t('finance.projectCreated')}: {formatProjectTimestamp(p.created_at)}
+            </Text>
+            <Text className="text-gray-400 text-[11px] mt-0.5 leading-4">
+              {t('finance.projectUpdated')}: {formatProjectTimestamp(p.updated_at)}
+            </Text>
             <Text className="text-gray-500 text-xs mt-1">
               {t('finance.contractAmountShort')}:{' '}
               <Text className="font-medium text-gray-800">
                 {formatMoney(draft?.contract_amount ?? p.contract_amount)}
               </Text>
+            </Text>
+            <Text className="text-gray-500 text-xs mt-1">
+              {t('finance.totalExpenses')}:{' '}
+              <Text className="font-medium text-gray-800">{formatMoney(expenseTotalOutflow)}</Text>
             </Text>
             <Text className="text-gray-500 text-xs mt-1">
               {t('finance.netMargin')}:{' '}
@@ -609,19 +787,31 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
           ]}
         >
           {IS_WEB ? (
-            <View>
-              <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
-                {t('common.appName')}
-              </AppNameText>
-              <ScreenHeroTitle className="mt-1">{t('finance.title')}</ScreenHeroTitle>
-              <Text className="text-gray-500 text-xs mt-1" style={{ maxWidth: 560 }}>
-                {t('finance.subtitle')}
-              </Text>
-              {projects.length > 0 ? (
+            <View className="flex-row flex-wrap items-start justify-between gap-4">
+              <View className="flex-1 min-w-[200px]" style={{ maxWidth: 620 }}>
+                <AppNameText className="text-ink-300 text-[10px] uppercase tracking-[0.16em]">
+                  {t('common.appName')}
+                </AppNameText>
+                <ScreenHeroTitle className="mt-1">{t('finance.title')}</ScreenHeroTitle>
                 <Text className="text-gray-500 text-xs mt-1" style={{ maxWidth: 560 }}>
-                  {t('finance.listSummary', { count: projects.length })}
+                  {t('finance.subtitle')}
                 </Text>
-              ) : null}
+                {projects.length > 0 ? (
+                  <Text className="text-gray-500 text-xs mt-1" style={{ maxWidth: 560 }}>
+                    {t('finance.listSummary', { count: projects.length })}
+                  </Text>
+                ) : null}
+              </View>
+              <TouchableOpacity
+                onPress={openMarginByYearModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('finance.marginByYearButton')}
+                activeOpacity={0.85}
+                className="flex-row items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 shadow-sm self-start shrink-0"
+              >
+                <Ionicons name="calculator-outline" size={22} color={theme.brandPrimary} />
+                <Text className="text-gray-900 font-semibold text-sm">{t('finance.marginByYearButton')}</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -633,6 +823,16 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
               {projects.length > 0 ? (
                 <Text className="text-gray-400 text-xs mt-2">{t('finance.listSummary', { count: projects.length })}</Text>
               ) : null}
+              <TouchableOpacity
+                onPress={openMarginByYearModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('finance.marginByYearButton')}
+                activeOpacity={0.85}
+                className="flex-row items-center justify-center gap-2 mt-4 py-3 px-4 rounded-xl bg-white border border-gray-200"
+              >
+                <Ionicons name="calculator-outline" size={22} color={theme.brandPrimary} />
+                <Text className="text-gray-900 font-semibold text-base">{t('finance.marginByYearButton')}</Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -734,6 +934,234 @@ export const FinanceProjectsScreen: React.FC<Props> = ({ profile: _profile, navi
             ) : activeFinanceProject ? (
               renderFinanceForm(activeFinanceProject)
             ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={marginByYearModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          setMarginYearPickerOpen(false);
+          setMarginByYearModalOpen(false);
+        }}
+      >
+        <View className="flex-1" style={modalShellStyle}>
+          <Pressable
+            className="absolute inset-0 bg-black/40"
+            onPress={() => {
+              setMarginYearPickerOpen(false);
+              setMarginByYearModalOpen(false);
+            }}
+          />
+          <View
+            className="bg-white rounded-[24px] border border-gray-100 overflow-hidden"
+            style={[{ minHeight: 0 }, marginYearModalCardStyle]}
+          >
+            <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100">
+              <Text
+                className="flex-1 text-lg font-bold text-gray-900 pr-2"
+                numberOfLines={2}
+              >
+                {t('finance.marginByYearTitle')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setMarginYearPickerOpen(false);
+                  setMarginByYearModalOpen(false);
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+              >
+                <Ionicons name="close" size={26} color={theme.brandInk} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }}
+            >
+              <Text className="text-sm text-gray-600 mb-4">{t('finance.marginByYearRule')}</Text>
+              <Text className={`${labelCls} mb-2`}>{t('finance.marginByYearSelectYears')}</Text>
+              {yearPickerOptions.length === 0 ? (
+                <Text className="text-sm text-gray-500 mb-5">{t('finance.marginByYearNoProjectYears')}</Text>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setMarginYearPickerOpen(true)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('finance.marginByYearChooseYears')}
+                    className="flex-row items-center justify-between border border-gray-200 rounded-xl px-3 py-3 mb-5 bg-white min-h-[48px]"
+                  >
+                    <Text
+                      className={`flex-1 pr-2 text-base ${marginByYearSelected.length ? 'text-gray-900 font-medium' : 'text-gray-400'}`}
+                      numberOfLines={2}
+                    >
+                      {marginByYearSelected.length > 0
+                        ? [...marginByYearSelected].sort((a, b) => b - a).join(', ')
+                        : t('finance.marginByYearChooseYears')}
+                    </Text>
+                    <Ionicons name="chevron-down" size={22} color={theme.inkMuted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={runMarginByYearCalculate}
+                    activeOpacity={0.85}
+                    disabled={marginByYearSelected.length === 0}
+                    className={`rounded-xl py-3.5 items-center mb-6 ${
+                      marginByYearSelected.length === 0 ? 'bg-gray-200' : 'bg-primary-600'
+                    }`}
+                  >
+                    <Text
+                      className={`font-semibold ${marginByYearSelected.length === 0 ? 'text-gray-500' : 'text-white'}`}
+                    >
+                      {t('finance.marginByYearCalculate')}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {marginByYearResults && marginByYearResults.length > 0 ? (
+                <View>
+                  <Text className={`${labelCls} mb-2`}>{t('finance.marginByYearResults')}</Text>
+                  {marginByYearResults.map(row => (
+                    <View key={row.year} className="border-b border-gray-100 py-3">
+                      <Text className="text-base font-bold text-gray-900">{row.year}</Text>
+                      {row.projectsInYear === 0 ? (
+                        <Text className="text-sm text-gray-500 mt-2">
+                          {t('finance.marginByYearNoProjectsInYear', { year: row.year })}
+                        </Text>
+                      ) : (
+                        <>
+                          <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">
+                            {t('finance.marginByYearDevisLine')}
+                          </Text>
+                          <Text className="text-lg font-semibold text-gray-900 mt-0.5">
+                            {formatMoney(row.totalDevis)}
+                          </Text>
+                          <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+                            {t('finance.marginByYearExpenseLine')}
+                          </Text>
+                          <Text className="text-base font-semibold text-gray-900 mt-0.5">
+                            {formatMoney(row.totalExpenseTtc)}
+                          </Text>
+                          <Text className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+                            {t('finance.netMargin')}
+                          </Text>
+                          <Text
+                            className={`text-lg font-semibold mt-0.5 ${
+                              row.total < 0 ? 'text-red-600' : 'text-primary-700'
+                            }`}
+                          >
+                            {formatMoney(row.total)}
+                          </Text>
+                          <Text className="text-xs text-gray-500 mt-2 leading-4">
+                            {t('finance.marginByYearBreakdown', {
+                              count: row.projectsInYear,
+                              withMargin: row.withMarginCount,
+                              missing: row.missingContractCount,
+                            })}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ))}
+                  {marginByYearResults.length >= 2 &&
+                  marginByYearGrandTotal != null &&
+                  marginByYearGrandExpenseTotal != null &&
+                  marginByYearGrandDevisTotal != null ? (
+                    <View className="mt-4 pt-4 border-t border-gray-200">
+                      <Text className="text-sm font-semibold text-gray-700">
+                        {t('finance.marginByYearGrandTotalDevis')}
+                      </Text>
+                      <Text className="text-xl font-bold text-gray-900 mt-1">
+                        {formatMoney(marginByYearGrandDevisTotal)}
+                      </Text>
+                      <Text className="text-xs text-gray-500 mt-2">
+                        {t('finance.marginByYearGrandTotalDevisHint')}
+                      </Text>
+                      <Text className="text-sm font-semibold text-gray-700 mt-4">
+                        {t('finance.marginByYearGrandTotalExpenses')}
+                      </Text>
+                      <Text className="text-xl font-bold text-gray-900 mt-1">
+                        {formatMoney(marginByYearGrandExpenseTotal)}
+                      </Text>
+                      <Text className="text-xs text-gray-500 mt-2">
+                        {t('finance.marginByYearGrandTotalExpensesHint')}
+                      </Text>
+                      <Text className="text-sm font-semibold text-gray-700 mt-4">
+                        {t('finance.marginByYearGrandTotal')}
+                      </Text>
+                      <Text
+                        className={`text-xl font-bold mt-1 ${
+                          marginByYearGrandTotal < 0 ? 'text-red-600' : 'text-gray-900'
+                        }`}
+                      >
+                        {formatMoney(marginByYearGrandTotal)}
+                      </Text>
+                      <Text className="text-xs text-gray-500 mt-2">{t('finance.marginByYearGrandTotalHint')}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={marginYearPickerOpen && marginByYearModalOpen && yearPickerOptions.length > 0}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setMarginYearPickerOpen(false)}
+      >
+        <View className="flex-1 justify-center" style={modalShellStyle}>
+          <Pressable className="absolute inset-0 bg-black/40" onPress={() => setMarginYearPickerOpen(false)} />
+          <View
+            className="bg-white rounded-[20px] border border-gray-100 mx-4 overflow-hidden"
+            style={{ maxWidth: 400, width: '100%', alignSelf: 'center', maxHeight: '72%' }}
+          >
+            <View className="px-4 py-3 border-b border-gray-100">
+              <Text className="text-base font-bold text-gray-900">{t('finance.marginByYearPickerTitle')}</Text>
+              <Text className="text-xs text-gray-500 mt-1">{t('finance.marginByYearPickerSubtitle')}</Text>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              style={{ maxHeight: 280 }}
+              contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}
+            >
+              {yearPickerOptions.map(y => {
+                const sel = marginByYearSelected.includes(y);
+                return (
+                  <TouchableOpacity
+                    key={y}
+                    onPress={() => toggleMarginYear(y)}
+                    activeOpacity={0.85}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: sel }}
+                    className="flex-row items-center py-3.5 px-2 border-b border-gray-100"
+                  >
+                    <Ionicons
+                      name={sel ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={sel ? theme.brandPrimary : theme.inkMuted}
+                    />
+                    <Text className="ml-3 text-base text-gray-900">{String(y)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <View className="p-3 border-t border-gray-100" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
+              <TouchableOpacity
+                onPress={() => setMarginYearPickerOpen(false)}
+                activeOpacity={0.85}
+                className="bg-primary-600 rounded-xl py-3 items-center"
+              >
+                <Text className="text-white font-semibold">{t('common.ok')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

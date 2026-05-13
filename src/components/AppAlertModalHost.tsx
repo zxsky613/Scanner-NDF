@@ -121,20 +121,29 @@ export const AppAlertModalHost: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={`${btn.text}-${i}`}
-                    className={`flex-1 rounded-full py-4 items-center active:opacity-90 ${
+                    className={`rounded-full px-4 py-3.5 justify-center items-center active:opacity-90 ${
                       isCancel
                         ? 'border border-gray-200 bg-surface'
                         : isDest
                           ? 'bg-red-500'
                           : 'bg-primary-600'
                     }`}
+                    style={{
+                      flexGrow: 1,
+                      flexShrink: 1,
+                      flexBasis: 0,
+                      minWidth: 0,
+                      maxWidth: '100%',
+                    }}
                     onPress={() => handleButtonPress(btn)}
                     activeOpacity={0.85}
                   >
                     <Text
-                      className={`font-bold text-base ${
-                        isCancel ? 'text-gray-800' : 'text-white'
-                      }`}
+                      className={`font-bold text-center leading-tight ${
+                        btn.text.length > 18 ? 'text-sm' : 'text-base'
+                      } ${isCancel ? 'text-gray-800' : 'text-white'}`}
+                      style={{ width: '100%' }}
+                      {...(Platform.OS === 'ios' ? ({ textBreakStrategy: 'balanced' } as const) : {})}
                     >
                       {btn.text}
                     </Text>

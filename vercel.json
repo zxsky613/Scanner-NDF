@@ -1,8 +1,25 @@
 {
-  "buildCommand": "expo export -p web",
+  "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "devCommand": "expo start --web",
   "cleanUrls": true,
+  "trailingSlash": false,
   "framework": null,
-  "rewrites": [{ "source": "/:path*", "destination": "/" }]
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "headers": [
+    {
+      "source": "/_expo/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
 }

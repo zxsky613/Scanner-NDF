@@ -10,7 +10,14 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 CREATE TYPE user_role AS ENUM ('employee', 'sales', 'manager', 'finance');
 CREATE TYPE expense_status AS ENUM ('pending', 'approved', 'rejected');
-CREATE TYPE expense_category AS ENUM ('food', 'materials', 'travel', 'other');
+CREATE TYPE expense_category AS ENUM (
+  'food',
+  'materials',
+  'travel',
+  'lodging',
+  'equipment_rental',
+  'other'
+);
 CREATE TYPE project_category AS ENUM (
   'sorting_equipment',
   'warehouse_equipment',
@@ -164,7 +171,7 @@ CREATE TABLE expenses (
   
   -- Status & workflow
   status expense_status NOT NULL DEFAULT 'pending',
-  reviewed_by UUID REFERENCES profiles(id),
+  reviewed_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   reviewed_at TIMESTAMPTZ,
   rejection_reason TEXT,
   

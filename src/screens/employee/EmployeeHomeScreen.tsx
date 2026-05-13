@@ -42,6 +42,7 @@ import {
   webHeroCardInlineStyle,
 } from '../../config/webLayout';
 import { userRoleLabel } from '../../utils/userRoleLabel';
+import { openSettingsTabFromNestedStack } from '../../utils/openSettingsTab';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -58,6 +59,8 @@ const categoryIcons: Record<string, string> = {
   food: '🍽️',
   materials: '🔧',
   travel: '🚗',
+  lodging: '🏨',
+  equipment_rental: '📦',
   other: '📋',
 };
 
@@ -66,6 +69,8 @@ const filterCategoryValues: (ExpenseCategory | 'all')[] = [
   'food',
   'materials',
   'travel',
+  'lodging',
+  'equipment_rental',
   'other',
 ];
 
@@ -454,6 +459,10 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
 
   const filtersActive = filtersNonEmpty(listFilters);
 
+  const openSettingsTab = useCallback(() => {
+    openSettingsTabFromNestedStack(navigation);
+  }, [navigation]);
+
   const openDeleteConfirm = (id: string) => {
     setDeleteTargetId(id);
   };
@@ -694,9 +703,19 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                 </AppNameText>
                 <View className="flex-row items-center justify-between gap-3 mt-1">
                   <View className="flex-1 min-w-0 pr-2">
-                    <ScreenHeroTitle>{t('employee.scanReceipt')}</ScreenHeroTitle>
+                    <ScreenHeroTitle>
+                      {IS_WEB ? t('employee.webHomeTitle') : t('employee.scanReceipt')}
+                    </ScreenHeroTitle>
                   </View>
                   <View className="flex-row gap-2 shrink-0 items-center flex-wrap justify-end">
+                    <TouchableOpacity
+                      onPress={openSettingsTab}
+                      className="items-center justify-center bg-white border border-gray-200 rounded-lg p-2.5 active:opacity-90"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('employee.openSettingsA11y')}
+                    >
+                      <Ionicons name="settings-outline" size={20} color={theme.brandInk} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       onPress={openFilterModal}
                       className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5"
@@ -754,18 +773,28 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                   className="flex-[3] min-w-0 rounded-2xl border-2 border-dashed border-gray-300/90 bg-surface px-3 py-3 flex-row items-center gap-3 active:opacity-95"
                 >
                   <View className="w-12 h-12 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100 shrink-0">
-                    <Ionicons name="cloud-upload-outline" size={28} color={theme.brandPrimary} />
+                    <Ionicons
+                      name={IS_WEB ? 'create-outline' : 'cloud-upload-outline'}
+                      size={28}
+                      color={theme.brandPrimary}
+                    />
                   </View>
                   <View className="flex-1 min-w-0">
                     <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
-                      {t('employee.scanDropTitle')}
+                      {IS_WEB ? t('employee.webNewExpenseCardTitle') : t('employee.scanDropTitle')}
                     </Text>
                     <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
-                      {t('employee.scanDropDesc')}
+                      {IS_WEB ? t('employee.webNewExpenseCardDesc') : t('employee.scanDropDesc')}
                     </Text>
                     <View className="mt-2 flex-row items-center gap-2 self-start bg-primary-600 rounded-lg px-4 py-2">
-                      <Ionicons name="folder-open-outline" size={16} color="#fff" />
-                      <Text className="text-white font-semibold text-xs">{t('employee.browseFiles')}</Text>
+                      <Ionicons
+                        name={IS_WEB ? 'add-circle-outline' : 'folder-open-outline'}
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text className="text-white font-semibold text-xs">
+                        {IS_WEB ? t('employee.webNewExpenseCardCta') : t('employee.browseFiles')}
+                      </Text>
                     </View>
                   </View>
                 </Pressable>
@@ -815,7 +844,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
             style={{ paddingTop: headerPaddingTop(insets.top), paddingBottom: 8 }}
           >
             <View
-              className="rounded-[28px] px-6 py-6"
+              className="rounded-[28px] px-6 py-6 relative"
               style={{
                 backgroundColor: theme.heroHeaderBg,
                 borderWidth: 1,
@@ -823,6 +852,15 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                 ...heroHeaderShadow,
               }}
             >
+              <TouchableOpacity
+                onPress={openSettingsTab}
+                className="absolute right-5 top-5 z-10 p-1.5"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('employee.openSettingsA11y')}
+              >
+                <Ionicons name="settings-outline" size={26} color={theme.brandInk} />
+              </TouchableOpacity>
               <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
                 {t('common.appName')}
               </AppNameText>

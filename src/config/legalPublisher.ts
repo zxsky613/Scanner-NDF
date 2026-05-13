@@ -21,7 +21,7 @@ export const LEGAL_PUBLISHER = {
    * Date affichée comme « dernière mise à jour » (modifiez ce libellé quand vous changez les documents ou ces infos).
    * Affiché tel quel dans chaque langue pour l’instant ; vous pouvez harmoniser (ex. ISO 2026-04-15) si vous préférez.
    */
-  documentsLastUpdated: '15 avril 2026',
+  documentsLastUpdated: '5 mai 2026',
 } as const;
 
 export function getLegalInterpolation(): Record<string, string> {

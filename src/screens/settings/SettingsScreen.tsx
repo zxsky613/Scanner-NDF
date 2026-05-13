@@ -1,11 +1,21 @@
-import React, { type ReactNode } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { type ReactNode, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  Platform,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { changeLanguage } from '../../i18n';
-import { showAppConfirm } from '../../utils/alert';
+import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { Profile, SupportedLanguage } from '../../types';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { AppNameText } from '../../components/AppNameText';
@@ -20,6 +30,7 @@ import {
   webHeaderOuterInlineStyle,
 } from '../../config/webLayout';
 import type { LegalDocKind } from '../legal/LegalDocumentScreen';
+import { mobileTabBarScrollPadding } from '../../config/constants';
 
 type SettingsStackNav = NativeStackNavigationProp<{
   SettingsHome: undefined;
@@ -29,6 +40,7 @@ type SettingsStackNav = NativeStackNavigationProp<{
 interface Props {
   profile: Profile;
   onLogout: () => Promise<void>;
+  onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const languages: { code: SupportedLanguage; label: string; flag: string }[] = [
@@ -58,9 +70,10 @@ function LanguageFlagIcon({ code, emoji }: { code: SupportedLanguage; emoji: str
   return <Text className="text-2xl mr-3">{emoji}</Text>;
 }
 
-export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
+export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAccount }) => {
   const navigation = useNavigation<SettingsStackNav>();
   const insets = useSafeAreaInsets();
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const { t, i18n } = useTranslation();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const legalKinds: LegalDocKind[] = ['mentions', 'privacy', 'terms'];
@@ -80,8 +93,58 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
     if (ok) await onLogout();
   };
 
+  const scrollStyle: StyleProp<ViewStyle> = [
+    { flex: 1, backgroundColor: theme.surface },
+    Platform.OS === 'web' ? { minHeight: 0 } : null,
+  ];
+
+  const scrollContentStyle: StyleProp<ViewStyle> = {
+    paddingBottom:
+      Math.max(insets.bottom, 12) +
+      (IS_WEB ? 48 : mobileTabBarScrollPadding() + 20),
+    ...(IS_WEB ? { flexGrow: 1 as const } : {}),
+  };
+
+  const handleDeleteAccount = async () => {
+    const first = await showAppConfirm(
+      t('auth.deleteAccountTitle'),
+      t('auth.deleteAccountMessage'),
+      t('common.cancel'),
+      t('auth.deleteAccountConfirmButton'),
+      { destructive: true }
+    );
+    if (!first) return;
+
+    const second = await showAppConfirm(
+      t('auth.deleteAccountTitle'),
+      t('auth.deleteAccountConfirmFinal'),
+      t('common.cancel'),
+      t('auth.deleteAccountConfirmButton'),
+      { destructive: true }
+    );
+    if (!second) return;
+
+    setDeletingAccount(true);
+    try {
+      const { error } = await onDeleteAccount();
+      if (error) {
+        showAppAlert(t('common.error'), `${t('auth.deleteAccountErrorDetail')}\n\n${error}`, 'error');
+      } else {
+        showAppAlert(t('common.success'), t('auth.deleteAccountSuccess'), 'success');
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   return (
-    <ScrollView className="flex-1 bg-surface">
+    <ScrollView
+      className="flex-1 bg-surface"
+      style={scrollStyle}
+      contentContainerStyle={scrollContentStyle}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator
+    >
       <View
         className={`${pageX} ${IS_WEB ? '' : 'pb-2'}`}
         style={[
@@ -189,6 +252,29 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
           )}
         </View>
 
+        <View
+          className="bg-white rounded-[22px] p-5 mb-4 border border-red-100 shadow-sm"
+          style={IS_WEB ? ({ minHeight: 120 } satisfies ViewStyle) : undefined}
+        >
+          <Text className="font-bold text-base mb-2" style={{ color: theme.brandInk }}>
+            {t('settings.deleteAccountSection')}
+          </Text>
+          <Text className="text-gray-500 text-sm mb-4 leading-5">{t('settings.deleteAccountHint')}</Text>
+          <TouchableOpacity
+            className="rounded-full py-3.5 items-center border border-red-200 bg-red-50 active:opacity-80"
+            onPress={() => void handleDeleteAccount()}
+            disabled={deletingAccount}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.deleteAccountButton')}
+          >
+            {deletingAccount ? (
+              <ActivityIndicator color={theme.brandPrimary} />
+            ) : (
+              <Text className="text-red-600 font-bold text-base">{t('settings.deleteAccountButton')}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* About */}
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
           <Text className="font-bold text-base mb-4" style={{ color: theme.brandInk }}>
@@ -231,6 +317,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout }) => {
         <TouchableOpacity
           className="bg-red-50 border border-red-100 rounded-full py-4 items-center mb-12"
           onPress={handleLogout}
+          disabled={deletingAccount}
         >
           <Text className="text-red-600 font-bold text-base">{t('auth.logout')}</Text>
         </TouchableOpacity>

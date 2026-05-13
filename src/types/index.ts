@@ -6,7 +6,23 @@ export type LegacyManagerRole = 'manager';
 
 export type StoredUserRole = UserRole | LegacyManagerRole;
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected';
-export type ExpenseCategory = 'food' | 'materials' | 'travel' | 'other';
+export type ExpenseCategory =
+  | 'food'
+  | 'materials'
+  | 'travel'
+  | 'lodging'
+  | 'equipment_rental'
+  | 'other';
+
+/** Liste exhaustive des clés catégorie (IA, filtres, compta). */
+export const EXPENSE_CATEGORY_KEYS: ExpenseCategory[] = [
+  'food',
+  'materials',
+  'travel',
+  'lodging',
+  'equipment_rental',
+  'other',
+];
 export type SupportedLanguage = 'fr' | 'en' | 'zh';
 
 export type ProjectCategory =
@@ -115,6 +131,8 @@ export interface AIExtractionResult {
   amount_ttc: number;
   vat_details: VatDetail[];
   confidence: number;
+  /** Catégorie déduite du ticket (si le modèle la renvoie). */
+  category?: ExpenseCategory;
 }
 
 /** Filtre projet : tous | sans projet (quotidien) | id UUID. */
@@ -156,5 +174,7 @@ export const CATEGORY_ACCOUNTING_CODES: Record<ExpenseCategory, string> = {
   food: '625100',
   materials: '606300',
   travel: '625600',
+  lodging: '625200',
+  equipment_rental: '613200',
   other: '628000',
 };

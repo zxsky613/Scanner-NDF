@@ -4,10 +4,25 @@ import { Platform } from 'react-native';
 import { AI_API_URL, AI_API_KEY, AI_MODEL } from '../config/constants';
 import { supabase } from '../config/supabase';
 import i18n from '../i18n';
-import { AIExtractionResult, VatDetail } from '../types';
+import {
+  AIExtractionResult,
+  ExpenseCategory,
+  EXPENSE_CATEGORY_KEYS,
+  VatDetail,
+} from '../types';
 
 /** Groq limite ~4 Mo pour les requêtes base64 ; on reste largement en dessous. */
 const MAX_B64_CHARS = 3_000_000;
+
+const CATEGORY_PROMPT_LINES = `
+Also classify the expense into exactly one "category" string (must be one of these lowercase keys):
+- food: meals, restaurants, cafés, groceries for meals
+- materials: supplies, hardware, raw materials, consumables
+- travel: fuel, taxis, trains, flights, parking, mileage, public transport for business trips
+- lodging: accommodation, hotels, hostels, 住宿 (nights, room charges)
+- equipment_rental: renting tools or equipment, location de matériel, 设备租赁
+- other: anything that does not clearly fit above
+`.trim();
 
 const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt image and return ONLY valid JSON:
 {
@@ -17,11 +32,21 @@ const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the 
   "amount_ht": number (amount excluding tax),
   "amount_ttc": number (total amount including tax),
   "vat_details": [{"rate": number, "base": number, "amount": number}],
+  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "other",
   "confidence": number (0-1)
 }
+${CATEGORY_PROMPT_LINES}
 Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
 For "city": the city name where the purchase took place — infer from the address block, store footer, or postal line on the ticket (e.g. "Paris", "Lyon"). If no city is visible or inferable, use an empty string "".
 Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
+
+function parseCategoryFromAi(raw: unknown): ExpenseCategory | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const k = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return (EXPENSE_CATEGORY_KEYS as readonly string[]).includes(k)
+    ? (k as ExpenseCategory)
+    : undefined;
+}
 
 /**
  * ImagePicker / Camera peuvent fournir du base64 directement.
@@ -120,6 +145,8 @@ function normalizeExtraction(raw: unknown): AIExtractionResult {
 
   const cityRaw = typeof p.city === 'string' ? p.city.trim() : '';
 
+  const cat = parseCategoryFromAi(p.category);
+
   return {
     date: typeof p.date === 'string' ? p.date : new Date().toISOString().slice(0, 10),
     supplier:
@@ -131,6 +158,7 @@ function normalizeExtraction(raw: unknown): AIExtractionResult {
     amount_ttc: Number.isFinite(ttc) ? ttc : 0,
     vat_details: vat,
     confidence: Math.min(1, Math.max(0, Number(p.confidence) || 0.5)),
+    ...(cat ? { category: cat } : {}),
   };
 }
 
@@ -219,7 +247,7 @@ export const extractReceiptData = async (
             ],
           },
         ],
-        max_tokens: 700,
+        max_tokens: 850,
       }),
     });
 

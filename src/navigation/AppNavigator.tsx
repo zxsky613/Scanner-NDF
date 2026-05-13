@@ -125,12 +125,15 @@ const FinanceStack: React.FC<FinanceStackProps> = ({ profile }) => (
 interface SettingsStackProps {
   profile: Profile;
   onLogout: () => Promise<void>;
+  onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
-const SettingsStack: React.FC<SettingsStackProps> = ({ profile, onLogout }) => (
+const SettingsStack: React.FC<SettingsStackProps> = ({ profile, onLogout, onDeleteAccount }) => (
   <SettingsStackNavigator.Navigator screenOptions={{ headerShown: false }}>
     <SettingsStackNavigator.Screen name="SettingsHome">
-      {() => <SettingsScreen profile={profile} onLogout={onLogout} />}
+      {() => (
+        <SettingsScreen profile={profile} onLogout={onLogout} onDeleteAccount={onDeleteAccount} />
+      )}
     </SettingsStackNavigator.Screen>
     <SettingsStackNavigator.Screen name="LegalDocument">
       {(props: any) => <LegalDocumentScreen {...props} />}
@@ -144,6 +147,7 @@ interface MainNavigatorProps {
   isCrmAccess: boolean;
   isFinanceTabAccess: boolean;
   onLogout: () => Promise<void>;
+  onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const TAB_ICON_SZ = Platform.OS === 'android' ? 28 : 26;
@@ -172,6 +176,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   isCrmAccess,
   isFinanceTabAccess,
   onLogout,
+  onDeleteAccount,
 }) => {
   const { t } = useTranslation();
   const { unreadCount, pendingExpenseCount } = useNotificationsContext();
@@ -209,7 +214,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
         tabBarVariant: IS_WEB ? 'material' : 'uikit',
         tabBarStyle: IS_WEB ? webLeftTabBarStyle() : mobileTabBarStyle,
         tabBarBackground: undefined,
-        sceneStyle: IS_WEB ? { backgroundColor: theme.surface, flex: 1 } : undefined,
+        sceneStyle: { backgroundColor: theme.surface, flex: 1 },
         tabBarActiveTintColor: theme.brandInk,
         tabBarInactiveTintColor: theme.inkMuted,
         tabBarItemStyle: IS_WEB
@@ -310,7 +315,9 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
           tabBarIcon: ({ focused }) => <TabIcon name="cog-outline" focused={focused} />,
         }}
       >
-        {() => <SettingsStack profile={profile} onLogout={onLogout} />}
+        {() => (
+          <SettingsStack profile={profile} onLogout={onLogout} onDeleteAccount={onDeleteAccount} />
+        )}
       </Tab.Screen>
     </Tab.Navigator>
   );

@@ -49,6 +49,7 @@ import { AppNameText } from '../../components/AppNameText';
 import { formatDate } from '../../utils/dateFormat';
 import { buildPeriodMarkings } from '../../utils/calendarRange';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
+import { openSettingsTabFromNestedStack } from '../../utils/openSettingsTab';
 import {
   formatAmountThousandsFromNumber,
   formatAmountThousandsSpaces,
@@ -255,7 +256,7 @@ interface Props {
   profile: Profile;
 }
 
-export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
+export const CrmProjectsScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t, i18n: i18nInstance } = useTranslation();
   const insets = useSafeAreaInsets();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
@@ -883,6 +884,10 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
     setSortModalOpen(false);
   };
 
+  const openSettingsTab = useCallback(() => {
+    openSettingsTabFromNestedStack(navigation);
+  }, [navigation]);
+
   const sortPillButton = (
     <TouchableOpacity
       className="flex-row items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5 active:opacity-90"
@@ -913,7 +918,7 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
         ]}
       >
         <View
-          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6'}
+          className={IS_WEB ? `${WEB_HERO_CARD_CLASS} overflow-hidden` : 'rounded-[28px] px-6 py-6 relative'}
           style={[
             {
               backgroundColor: theme.heroHeaderBg,
@@ -936,6 +941,14 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
                 <View className="flex-row items-center gap-2 flex-wrap shrink-0">
                   {sortPillButton}
                   <TouchableOpacity
+                    onPress={openSettingsTab}
+                    className="items-center justify-center bg-white border border-gray-200 rounded-lg p-2.5 active:opacity-90"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('employee.openSettingsA11y')}
+                  >
+                    <Ionicons name="settings-outline" size={20} color={theme.brandInk} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     className="flex-row items-center gap-2 bg-primary-600 rounded-lg px-4 py-2.5"
                     onPress={openCreate}
                   >
@@ -948,6 +961,15 @@ export const CrmProjectsScreen: React.FC<Props> = ({ profile }) => {
             </View>
           ) : (
             <>
+              <TouchableOpacity
+                onPress={openSettingsTab}
+                className="absolute right-5 top-5 z-10 p-1.5"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('employee.openSettingsA11y')}
+              >
+                <Ionicons name="settings-outline" size={26} color={theme.brandInk} />
+              </TouchableOpacity>
               <AppNameText className="text-ink-300 text-xs uppercase tracking-[0.14em]">
                 {t('common.appName')}
               </AppNameText>

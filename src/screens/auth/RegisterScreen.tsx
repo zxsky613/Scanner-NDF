@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { UserRole } from '../../types';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
+import { AuthDeleteAccountHelpLink } from '../../components/AuthDeleteAccountHelpLink';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppNameText } from '../../components/AppNameText';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
@@ -245,6 +246,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, onRegister }) => {
                 <Text className="text-gray-500 text-xs mt-2 leading-4">{t('auth.accessCodeHint')}</Text>
               </View>
             ) : null}
+
+            <AuthDeleteAccountHelpLink />
 
             <Text className="text-gray-500 text-xs text-center mb-2 leading-5">{t('auth.legalRegisterLead')}</Text>
             <View className="flex-row flex-wrap justify-center gap-x-3 gap-y-2 mb-5">

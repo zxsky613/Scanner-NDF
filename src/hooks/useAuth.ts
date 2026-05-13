@@ -49,18 +49,8 @@ export const useAuth = () => {
   }, []);
 
   useEffect(() => {
-    const onUrl = ({ url }: { url: string }) => {
-      void handleSupabaseAuthDeepLink(url);
-    };
-    const sub = Linking.addEventListener('url', onUrl);
-    void Linking.getInitialURL().then(url => {
-      if (url) void handleSupabaseAuthDeepLink(url);
-    });
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
+    let linkingSub: ReturnType<typeof Linking.addEventListener> | undefined;
 
     const applySession = async (session: Session | null) => {
       let profile: Profile | null = null;
@@ -72,19 +62,44 @@ export const useAuth = () => {
       }
     };
 
+    /** Si l’event auth ne suit pas le deep link tout de suite (inscription, iPad…). */
+    const refreshSessionFromStorage = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!cancelled && data.session) {
+          await applySession(data.session);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        // Évite getSession() en parallèle : INITIAL_SESSION couvre le chargement initial.
-        // Reporter le travail évite les courses sur le verrou GoTrue (recommandé SDK).
         queueMicrotask(() => {
           void applySession(session);
         });
       }
     );
 
+    linkingSub = Linking.addEventListener('url', ({ url }) => {
+      void (async () => {
+        await handleSupabaseAuthDeepLink(url);
+        await refreshSessionFromStorage();
+      })();
+    });
+
+    void (async () => {
+      const initial = await Linking.getInitialURL();
+      if (cancelled || !initial) return;
+      await handleSupabaseAuthDeepLink(initial);
+      await refreshSessionFromStorage();
+    })();
+
     return () => {
       cancelled = true;
       subscription.unsubscribe();
+      linkingSub?.remove();
     };
   }, [fetchProfile]);
 
@@ -174,6 +189,31 @@ export const useAuth = () => {
     setState({ session: null, profile: null, loading: false });
   };
 
+  /**
+   * Supprime définitivement le compte (Edge Function `delete-account`).
+   * Exige la migration SQL `expenses_reviewed_by_on_delete_set_null.sql` et le déploiement de la fonction.
+   */
+  const deleteAccount = async (): Promise<{ error: string | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+        'delete-account',
+        { method: 'POST' }
+      );
+      if (error) {
+        return { error: error.message ?? 'DELETE_ACCOUNT_FAILED' };
+      }
+      const payload = data as { ok?: boolean; error?: string } | null;
+      if (payload?.error) {
+        return { error: payload.error };
+      }
+      await supabase.auth.signOut();
+      setState({ session: null, profile: null, loading: false });
+      return { error: null };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : 'DELETE_ACCOUNT_FAILED' };
+    }
+  };
+
   /** Suivi / validation des notes (Finance ou anciens « manager »). */
   const isAdmin = hasExpenseManagementAccess(state.profile?.role);
 
@@ -188,6 +228,7 @@ export const useAuth = () => {
     signIn,
     signUp,
     signOut,
+    deleteAccount,
     isAdmin,
     isCrmAccess,
     isFinanceTabAccess,

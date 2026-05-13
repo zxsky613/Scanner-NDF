@@ -53,6 +53,8 @@ const categories: { value: ExpenseCategory; icon: string }[] = [
   { value: 'food', icon: '🍽️' },
   { value: 'materials', icon: '🔧' },
   { value: 'travel', icon: '🚗' },
+  { value: 'lodging', icon: '🏨' },
+  { value: 'equipment_rental', icon: '📦' },
   { value: 'other', icon: '📋' },
 ];
 
@@ -243,6 +245,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           ? roundMoney(data.vat_details[0].rate)
           : 0;
       setVatDetails([{ rate: Number.isFinite(rate) ? rate : 0, base: ht, amount: vatAmt }]);
+      if (data.category) setCategory(data.category);
       showAppAlert(t('common.success'), t('employee.analysisComplete'), 'success');
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
@@ -501,32 +504,37 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
             <ScreenHeroTitle variant="stack" className="mt-3">
               {editingId ? t('employee.editExpense') : t('employee.newExpense')}
             </ScreenHeroTitle>
-            <Text className="text-gray-400 text-sm mt-2">{t('employee.scanReceipt')}</Text>
+            <Text className="text-gray-400 text-sm mt-2">
+              {IS_WEB ? t('employee.webNewExpenseSubtitle') : t('employee.scanReceipt')}
+            </Text>
           </View>
         </View>
 
         <View className={`${pageX} mt-5`}>
-          {/* Image capture buttons */}
-          <View className="flex-row gap-3 mb-4">
-            <TouchableOpacity
-              className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
-              onPress={handleTakePhoto}
-            >
-              <Text className="text-2xl mb-1">📸</Text>
-              <Text className="text-gray-700 font-medium text-sm">
-                {t('employee.takePhoto')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
-              onPress={handlePickImage}
-            >
-              <Text className="text-2xl mb-1">📁</Text>
-              <Text className="text-gray-700 font-medium text-sm">
-                {t('employee.uploadReceipt')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Boutons de capture / import — masqu\u00e9s sur web : la version PC sert \u00e0 g\u00e9rer les donn\u00e9es,
+              la saisie de tickets se fait depuis le mobile. */}
+          {!IS_WEB && (
+            <View className="flex-row gap-3 mb-4">
+              <TouchableOpacity
+                className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
+                onPress={handleTakePhoto}
+              >
+                <Text className="text-2xl mb-1">📸</Text>
+                <Text className="text-gray-700 font-medium text-sm">
+                  {t('employee.takePhoto')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
+                onPress={handlePickImage}
+              >
+                <Text className="text-2xl mb-1">📁</Text>
+                <Text className="text-gray-700 font-medium text-sm">
+                  {t('employee.uploadReceipt')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Justificatif : menu voir / remplacer ; miniature via URL signée si besoin */}
           {imageUri && !IS_WEB && (
@@ -792,55 +800,37 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               style={{ paddingTop: Math.max(insets.top, 8) + 8 }}
             >
               <Text className="text-base font-semibold" style={{ color: theme.brandInk }}>
-                {t('employee.documentAnalysisTitle')}
+                {t('employee.webSummaryTitle')}
               </Text>
               <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
                 <Ionicons name="close" size={22} color={theme.inkMuted} />
               </Pressable>
             </View>
             <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 16 }} style={{ flex: 1 }}>
-              <View className="w-full rounded-lg overflow-hidden border border-gray-200/90 bg-surface mt-3 relative">
-                {analyzing ? (
-                  <View className="h-[200px] items-center justify-center">
-                    <ActivityIndicator color={theme.brandPrimary} />
-                  </View>
-                ) : receiptDisplayUri || imageUri ? (
-                  <>
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        zIndex: 2,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: theme.brandPrimary,
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 6,
-                      }}
-                    >
-                      <Ionicons name="sparkles-outline" size={14} color="#ffffff" />
-                      <Text className="text-white text-xs font-semibold ml-1">
-                        {t('employee.aiExtractionBadge')}
-                      </Text>
-                    </View>
-                    <GestureHandlerRootView style={{ width: '100%', height: 200 }}>
-                      <ZoomableReceiptImage
-                        uri={(receiptDisplayUri ?? imageUri) as string}
-                        width={WEB_RIGHT_PANEL_W - 32}
-                        height={200}
-                        onError={() => setReceiptImageError(true)}
-                      />
-                    </GestureHandlerRootView>
-                  </>
-                ) : (
-                  <View className="h-[200px] items-center justify-center px-4">
-                    <Ionicons name="document-outline" size={48} color={theme.inkMuted} />
-                    <Text className="text-gray-500 text-sm mt-2 text-center">{t('employee.scanReceipt')}</Text>
-                  </View>
-                )}
-              </View>
+              {/* Bloc justificatif : sur web, plus d'image (saisie 100% manuelle) ;
+                  un encart informatif renvoie l'utilisateur vers l'app mobile pour scanner. */}
+              {receiptDisplayUri || imageUri ? (
+                <View className="w-full rounded-lg overflow-hidden border border-gray-200/90 bg-surface mt-3 relative">
+                  <GestureHandlerRootView style={{ width: '100%', height: 200 }}>
+                    <ZoomableReceiptImage
+                      uri={(receiptDisplayUri ?? imageUri) as string}
+                      width={WEB_RIGHT_PANEL_W - 32}
+                      height={200}
+                      onError={() => setReceiptImageError(true)}
+                    />
+                  </GestureHandlerRootView>
+                </View>
+              ) : (
+                <View className="w-full rounded-lg border border-gray-200/90 bg-surface mt-3 px-4 py-5 items-center">
+                  <Ionicons name="phone-portrait-outline" size={36} color={theme.inkMuted} />
+                  <Text className="text-gray-700 font-semibold text-sm mt-2 text-center">
+                    {t('employee.webNoReceiptTitle')}
+                  </Text>
+                  <Text className="text-gray-500 text-xs mt-1 text-center leading-4">
+                    {t('employee.webNoReceiptHint')}
+                  </Text>
+                </View>
+              )}
 
               <View className="mt-4">
                 <Text className="text-[13px] font-medium text-gray-500">{t('expense.supplier')}</Text>
@@ -886,17 +876,19 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               className="flex-row gap-3 px-4 py-4 border-t border-gray-200/80"
               style={{ paddingBottom: Math.max(insets.bottom, 12) }}
             >
-              <TouchableOpacity
-                className="flex-row items-center justify-center border border-gray-200 rounded-lg px-3 py-2.5"
-                onPress={() => {
-                  setImageUri(null);
-                  setReceiptDisplayUri(null);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.delete')}
-              >
-                <Ionicons name="trash-outline" size={20} color={theme.brandInk} />
-              </TouchableOpacity>
+              {(receiptDisplayUri || imageUri) && (
+                <TouchableOpacity
+                  className="flex-row items-center justify-center border border-gray-200 rounded-lg px-3 py-2.5"
+                  onPress={() => {
+                    setImageUri(null);
+                    setReceiptDisplayUri(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.delete')}
+                >
+                  <Ionicons name="trash-outline" size={20} color={theme.brandInk} />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 className={`flex-1 py-3 rounded-lg items-center justify-center ${saving ? 'bg-primary-400' : 'bg-primary-600'}`}
                 onPress={handleSubmit}
