@@ -14,7 +14,6 @@ import { AppNameText } from '../../components/AppNameText';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthLanguagePicker } from '../../components/AuthLanguagePicker';
-import { AuthDeleteAccountHelpLink } from '../../components/AuthDeleteAccountHelpLink';
 import { showAppAlert } from '../../utils/alert';
 import { theme } from '../../config/theme';
 import { IS_WEB } from '../../config/webLayout';
@@ -146,17 +145,9 @@ export const LoginScreen: React.FC<Props> = ({ navigation, onLogin }) => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              className="mt-6 items-center w-full"
-              onPress={() => navigation.navigate('Register')}
-            >
-              <Text className="text-primary-600 text-base text-center">
-                {t('auth.noAccount')}{' '}
-                <Text className="font-semibold">{t('auth.register')}</Text>
-              </Text>
-            </TouchableOpacity>
-
-            <AuthDeleteAccountHelpLink />
+            <Text className="text-gray-400 text-xs text-center mt-6">
+              {t('auth.contactAdminForAccount')}
+            </Text>
 
             <Text className="text-gray-500 text-xs text-center mt-5 mb-2">{t('auth.legalLoginLead')}</Text>
             <View className="flex-row flex-wrap justify-center gap-x-3 gap-y-2">

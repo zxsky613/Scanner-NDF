@@ -190,6 +190,32 @@ export const useAuth = () => {
   };
 
   /**
+   * Change le mot de passe de l’utilisateur connecté (code d’accès initial fourni par l’admin).
+   * Vérifie d’abord l’ancien mot de passe en se ré-authentifiant.
+   */
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ error: string | null }> => {
+    try {
+      const email = state.session?.user?.email;
+      if (!email) return { error: 'NO_SESSION' };
+
+      const { error: verifyErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (verifyErr) return { error: 'INVALID_CURRENT_PASSWORD' };
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { error: error.message ?? 'CHANGE_PASSWORD_FAILED' };
+      return { error: null };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : 'CHANGE_PASSWORD_FAILED' };
+    }
+  };
+
+  /**
    * Supprime définitivement le compte (Edge Function `delete-account`).
    * Exige la migration SQL `expenses_reviewed_by_on_delete_set_null.sql` et le déploiement de la fonction.
    */
@@ -228,6 +254,7 @@ export const useAuth = () => {
     signIn,
     signUp,
     signOut,
+    changePassword,
     deleteAccount,
     isAdmin,
     isCrmAccess,

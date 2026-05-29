@@ -34,8 +34,8 @@ const AppContent: React.FC = () => {
     profile,
     loading,
     signIn,
-    signUp,
     signOut,
+    changePassword,
     deleteAccount,
     isAdmin,
     isCrmAccess,
@@ -56,7 +56,7 @@ const AppContent: React.FC = () => {
   }
 
   if (!session || !profile) {
-    return <AuthNavigator onLogin={signIn} onRegister={signUp} />;
+    return <AuthNavigator onLogin={signIn} />;
   }
 
   return (
@@ -66,6 +66,7 @@ const AppContent: React.FC = () => {
       isCrmAccess={isCrmAccess}
       isFinanceTabAccess={isFinanceTabAccess}
       onLogout={signOut}
+      onChangePassword={changePassword}
       onDeleteAccount={deleteAccount}
     />
   );

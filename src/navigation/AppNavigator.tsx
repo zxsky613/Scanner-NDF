@@ -7,10 +7,9 @@ import { useTranslation } from 'react-i18next';
 
 import { Font } from '../config/fonts';
 import { theme } from '../config/theme';
-import { Profile, UserRole } from '../types';
+import { Profile } from '../types';
 import { NotificationsProvider, useNotificationsContext } from '../context/NotificationsContext';
 import { LoginScreen } from '../screens/auth/LoginScreen';
-import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { EmployeeHomeScreen } from '../screens/employee/EmployeeHomeScreen';
 import { NewExpenseScreen } from '../screens/employee/NewExpenseScreen';
 import { ExpenseDetailScreen } from '../screens/employee/ExpenseDetailScreen';
@@ -30,21 +29,12 @@ const Tab = createBottomTabNavigator();
 
 interface AuthNavigatorProps {
   onLogin: (email: string, password: string) => Promise<{ error: any }>;
-  onRegister: (
-    email: string,
-    password: string,
-    fullName: string,
-    role: UserRole
-  ) => Promise<{ error: any }>;
 }
 
-export const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onLogin, onRegister }) => (
+export const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onLogin }) => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login">
       {(props: any) => <LoginScreen {...props} onLogin={onLogin} />}
-    </Stack.Screen>
-    <Stack.Screen name="Register">
-      {(props: any) => <RegisterScreen {...props} onRegister={onRegister} />}
     </Stack.Screen>
     <Stack.Screen name="LegalDocument">
       {(props: any) => <LegalDocumentScreen {...props} />}
@@ -125,14 +115,20 @@ const FinanceStack: React.FC<FinanceStackProps> = ({ profile }) => (
 interface SettingsStackProps {
   profile: Profile;
   onLogout: () => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
   onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
-const SettingsStack: React.FC<SettingsStackProps> = ({ profile, onLogout, onDeleteAccount }) => (
+const SettingsStack: React.FC<SettingsStackProps> = ({ profile, onLogout, onChangePassword, onDeleteAccount }) => (
   <SettingsStackNavigator.Navigator screenOptions={{ headerShown: false }}>
     <SettingsStackNavigator.Screen name="SettingsHome">
       {() => (
-        <SettingsScreen profile={profile} onLogout={onLogout} onDeleteAccount={onDeleteAccount} />
+        <SettingsScreen
+          profile={profile}
+          onLogout={onLogout}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
       )}
     </SettingsStackNavigator.Screen>
     <SettingsStackNavigator.Screen name="LegalDocument">
@@ -147,6 +143,7 @@ interface MainNavigatorProps {
   isCrmAccess: boolean;
   isFinanceTabAccess: boolean;
   onLogout: () => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
   onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
@@ -176,6 +173,7 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
   isCrmAccess,
   isFinanceTabAccess,
   onLogout,
+  onChangePassword,
   onDeleteAccount,
 }) => {
   const { t } = useTranslation();
@@ -316,7 +314,12 @@ const MainNavigatorInner: React.FC<MainNavigatorProps> = ({
         }}
       >
         {() => (
-          <SettingsStack profile={profile} onLogout={onLogout} onDeleteAccount={onDeleteAccount} />
+          <SettingsStack
+            profile={profile}
+            onLogout={onLogout}
+            onChangePassword={onChangePassword}
+            onDeleteAccount={onDeleteAccount}
+          />
         )}
       </Tab.Screen>
     </Tab.Navigator>

@@ -2,10 +2,13 @@ import React, { type ReactNode, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   Image,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
   Platform,
   type StyleProp,
   type ViewStyle,
@@ -40,6 +43,7 @@ type SettingsStackNav = NativeStackNavigationProp<{
 interface Props {
   profile: Profile;
   onLogout: () => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<{ error: string | null }>;
   onDeleteAccount: () => Promise<{ error: string | null }>;
 }
 
@@ -70,10 +74,15 @@ function LanguageFlagIcon({ code, emoji }: { code: SupportedLanguage; emoji: str
   return <Text className="text-2xl mr-3">{emoji}</Text>;
 }
 
-export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAccount }) => {
+export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onChangePassword, onDeleteAccount }) => {
   const navigation = useNavigation<SettingsStackNav>();
   const insets = useSafeAreaInsets();
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const { t, i18n } = useTranslation();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const legalKinds: LegalDocKind[] = ['mentions', 'privacy', 'terms'];
@@ -91,6 +100,55 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAcc
       { destructive: true }
     );
     if (ok) await onLogout();
+  };
+
+  const openPasswordModal = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordModalVisible(true);
+  };
+
+  const closePasswordModal = () => {
+    if (changingPassword) return;
+    setPasswordModalVisible(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword) {
+      showAppAlert(t('common.error'), t('auth.currentPasswordRequired'), 'error');
+      return;
+    }
+    if (newPassword.length < 6) {
+      showAppAlert(t('common.error'), t('auth.passwordTooShort'), 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showAppAlert(t('common.error'), t('auth.passwordMismatch'), 'error');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const { error } = await onChangePassword(currentPassword, newPassword);
+      if (error === 'INVALID_CURRENT_PASSWORD') {
+        showAppAlert(t('common.error'), t('auth.invalidCurrentPassword'), 'error');
+        return;
+      }
+      if (error) {
+        showAppAlert(t('common.error'), `${t('auth.changePasswordError')}\n\n${error}`, 'error');
+        return;
+      }
+      setPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showAppAlert(t('common.success'), t('auth.changePasswordSuccess'), 'success');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const scrollStyle: StyleProp<ViewStyle> = [
@@ -138,6 +196,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAcc
   };
 
   return (
+    <>
     <ScrollView
       className="flex-1 bg-surface"
       style={scrollStyle}
@@ -252,6 +311,22 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAcc
           )}
         </View>
 
+        {/* Change password */}
+        <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
+          <Text className="font-bold text-base mb-2" style={{ color: theme.brandInk }}>
+            {t('settings.changePasswordSection')}
+          </Text>
+          <Text className="text-gray-500 text-sm mb-4 leading-5">{t('settings.changePasswordHint')}</Text>
+          <TouchableOpacity
+            className="rounded-full py-3.5 items-center border border-primary-200 bg-primary-50 active:opacity-80"
+            onPress={openPasswordModal}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.changePasswordButton')}
+          >
+            <Text className="text-primary-700 font-bold text-base">{t('settings.changePasswordButton')}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View
           className="bg-white rounded-[22px] p-5 mb-4 border border-red-100 shadow-sm"
           style={IS_WEB ? ({ minHeight: 120 } satisfies ViewStyle) : undefined}
@@ -288,7 +363,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAcc
               </AppNameText>
             }
           />
-          <InfoRow label={t('settings.version')} value="1.0.0" />
+          <InfoRow label={t('settings.version')} value="1.0.1" />
         </View>
 
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
@@ -323,6 +398,79 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onDeleteAcc
         </TouchableOpacity>
       </View>
     </ScrollView>
+
+    <Modal
+      visible={passwordModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={closePasswordModal}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
+      >
+        <View className="flex-1 items-center justify-center bg-black/40 px-6">
+          <View className="w-full max-w-md bg-white rounded-[24px] p-6">
+            <Text className="font-bold text-lg mb-1" style={{ color: theme.brandInk }}>
+              {t('settings.changePasswordButton')}
+            </Text>
+            <Text className="text-gray-500 text-sm mb-5 leading-5">
+              {t('settings.changePasswordHint')}
+            </Text>
+            <TextInput
+              className="w-full bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900 mb-3"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              placeholder={t('auth.currentPassword')}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              className="w-full bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900 mb-3"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder={t('auth.newPassword')}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              className="w-full bg-surface border border-gray-100 rounded-2xl px-4 py-3.5 text-base text-gray-900 mb-5"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder={t('auth.confirmPassword')}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              className="rounded-full py-3.5 items-center bg-primary-600 active:opacity-80 mb-3"
+              onPress={() => void handleChangePassword()}
+              disabled={changingPassword}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.changePasswordButton')}
+            >
+              {changingPassword ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-bold text-base">{t('settings.changePasswordButton')}</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="py-3 items-center"
+              onPress={closePasswordModal}
+              disabled={changingPassword}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.cancel')}
+            >
+              <Text className="text-gray-500 font-medium text-base">{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    </>
   );
 };
 
