@@ -61,8 +61,13 @@ const categoryIcons: Record<string, string> = {
   travel: '🚗',
   lodging: '🏨',
   equipment_rental: '📦',
+  local_procurement: '🛒',
   other: '📋',
 };
+
+function employeeCanEditExpense(status: Expense['status']): boolean {
+  return status === 'pending' || status === 'rejected';
+}
 
 const filterCategoryValues: (ExpenseCategory | 'all')[] = [
   'all',
@@ -71,6 +76,7 @@ const filterCategoryValues: (ExpenseCategory | 'all')[] = [
   'travel',
   'lodging',
   'equipment_rental',
+  'local_procurement',
   'other',
 ];
 
@@ -128,7 +134,8 @@ function WebExpenseRowWeb({
   onCollapse,
   onOpenDelete,
 }: WebExpenseRowWebProps) {
-  const pending = item.status === 'pending';
+  const canEdit = employeeCanEditExpense(item.status);
+  const canDelete = item.status === 'pending';
   const menuBtnRef = useRef<View>(null);
   const [menuAnchor, setMenuAnchor] = useState<{
     x: number;
@@ -161,7 +168,7 @@ function WebExpenseRowWeb({
     if (!menuAnchor) return null;
     const { width: winW, height: winH } = Dimensions.get('window');
     const pad = 10;
-    const rows = pending ? 3 : 1;
+    const rows = canDelete ? 3 : canEdit ? 2 : 1;
     const estH = rows * 48 + 12;
     let top = menuAnchor.y + menuAnchor.height + 6;
     if (top + estH > winH - pad) {
@@ -311,7 +318,7 @@ function WebExpenseRowWeb({
                   {t('employee.swipeView')}
                 </Text>
               </Pressable>
-              {pending ? (
+              {canEdit ? (
                 <>
                   <View className="h-px bg-gray-100 mx-3" />
                   <Pressable
@@ -321,26 +328,32 @@ function WebExpenseRowWeb({
                       navigation.navigate('NewExpense', { editExpense: item });
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={t('common.edit')}
+                    accessibilityLabel={
+                      item.status === 'rejected' ? t('expense.editAndResubmit') : t('common.edit')
+                    }
                   >
                     <Ionicons name="create-outline" size={20} color={swipeStyles.iconEdit} />
                     <Text className="text-sm font-semibold" style={{ color: theme.brandInk }}>
-                      {t('common.edit')}
+                      {item.status === 'rejected' ? t('expense.editAndResubmit') : t('common.edit')}
                     </Text>
                   </Pressable>
-                  <View className="h-px bg-gray-100 mx-3" />
-                  <Pressable
-                    className="flex-row items-center gap-3 px-4 py-3 active:bg-red-50"
-                    onPress={() => {
-                      onCollapse();
-                      onOpenDelete(item.id);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('common.delete')}
-                  >
-                    <Ionicons name="trash-outline" size={20} color={swipeStyles.iconDelete} />
-                    <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
-                  </Pressable>
+                  {canDelete ? (
+                    <>
+                      <View className="h-px bg-gray-100 mx-3" />
+                      <Pressable
+                        className="flex-row items-center gap-3 px-4 py-3 active:bg-red-50"
+                        onPress={() => {
+                          onCollapse();
+                          onOpenDelete(item.id);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.delete')}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={swipeStyles.iconDelete} />
+                        <Text className="text-sm font-semibold text-red-700">{t('common.delete')}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
                 </>
               ) : null}
             </View>
@@ -544,7 +557,8 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
   };
 
   const renderExpense = ({ item }: { item: Expense }) => {
-    const pending = item.status === 'pending';
+    const canEdit = employeeCanEditExpense(item.status);
+    const canDelete = item.status === 'pending';
 
     /** Ligne type « tableau » : ⋮ le menu (trois points) ouvre Voir / Modifier / Supprimer. */
     if (IS_WEB) {
@@ -581,7 +595,7 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
         >
           <Ionicons name="eye-outline" size={SWIPE_ICON_SIZE} color={swipeStyles.iconView} />
         </Pressable>
-        {pending && (
+        {canEdit && (
           <>
             <View className="w-px bg-gray-100 self-stretch" />
             <Pressable
@@ -592,23 +606,29 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                 navigation.navigate('NewExpense', { editExpense: item });
               }}
               accessibilityRole="button"
-              accessibilityLabel={t('common.edit')}
+              accessibilityLabel={
+                item.status === 'rejected' ? t('expense.editAndResubmit') : t('common.edit')
+              }
             >
               <Ionicons name="create-outline" size={SWIPE_ICON_SIZE} color={swipeStyles.iconEdit} />
             </Pressable>
-            <View className="w-px bg-gray-100 self-stretch" />
-            <Pressable
-              style={swipeStyles.cell}
-              android_ripple={{ color: '#fef2f2' }}
-              onPress={() => {
-                closeSwipe(item.id);
-                openDeleteConfirm(item.id);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.delete')}
-            >
-              <Ionicons name="trash-outline" size={SWIPE_ICON_SIZE} color={swipeStyles.iconDelete} />
-            </Pressable>
+            {canDelete ? (
+              <>
+                <View className="w-px bg-gray-100 self-stretch" />
+                <Pressable
+                  style={swipeStyles.cell}
+                  android_ripple={{ color: '#fef2f2' }}
+                  onPress={() => {
+                    closeSwipe(item.id);
+                    openDeleteConfirm(item.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.delete')}
+                >
+                  <Ionicons name="trash-outline" size={SWIPE_ICON_SIZE} color={swipeStyles.iconDelete} />
+                </Pressable>
+              </>
+            ) : null}
           </>
         )}
       </View>

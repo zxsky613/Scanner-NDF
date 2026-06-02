@@ -16,6 +16,7 @@ CREATE TYPE expense_category AS ENUM (
   'travel',
   'lodging',
   'equipment_rental',
+  'local_procurement',
   'other'
 );
 CREATE TYPE project_category AS ENUM (
@@ -201,11 +202,11 @@ CREATE POLICY "Users can insert own expenses"
   ON expenses FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- Employees can update their own pending expenses
-CREATE POLICY "Users can update own pending expenses"
+-- Employees can update their own pending or rejected expenses (resubmit after rejection)
+CREATE POLICY "Users can update own pending or rejected expenses"
   ON expenses FOR UPDATE
-  USING (auth.uid() = user_id AND status = 'pending')
-  WITH CHECK (auth.uid() = user_id);
+  USING (auth.uid() = user_id AND status IN ('pending', 'rejected'))
+  WITH CHECK (auth.uid() = user_id AND status IN ('pending', 'rejected'));
 
 -- Employees can delete their own pending expenses
 CREATE POLICY "Users can delete own pending expenses"

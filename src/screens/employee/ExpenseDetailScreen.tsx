@@ -21,6 +21,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Expense, Profile } from '../../types';
 import { supabase } from '../../config/supabase';
 import { submitExpenseReview } from '../../lib/expenseReview';
+import { useAuth } from '../../hooks/useAuth';
 import { showAppAlert } from '../../utils/alert';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
@@ -51,6 +52,10 @@ function isReviewerRole(role: Profile['role'] | undefined): boolean {
   return role === 'finance' || role === 'manager';
 }
 
+function employeeCanEditExpense(status: Expense['status']): boolean {
+  return status === 'pending' || status === 'rejected';
+}
+
 export const ExpenseDetailScreen: React.FC<Props> = ({
   navigation,
   route,
@@ -58,6 +63,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { session } = useAuth();
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const [expenseRow, setExpenseRow] = useState<Expense>(route.params.expense);
   const [actionLoading, setActionLoading] = useState(false);
@@ -65,6 +71,11 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
   const [rejectionReason, setRejectionReason] = useState('');
   const canReview =
     !!viewerProfile && isReviewerRole(viewerProfile.role) && expenseRow.status === 'pending';
+  const canEmployeeEdit =
+    !viewerProfile &&
+    !!session?.user?.id &&
+    expenseRow.user_id === session.user.id &&
+    employeeCanEditExpense(expenseRow.status);
   const status = statusConfig[expenseRow.status];
   const { width: windowW, height: windowH } = useWindowDimensions();
 
@@ -369,6 +380,21 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
             <Text className="text-red-800 font-bold">{t('admin.rejectionReason')}</Text>
             <Text className="text-red-600 text-sm mt-1">{expenseRow.rejection_reason}</Text>
           </View>
+        )}
+
+        {canEmployeeEdit && (
+          <TouchableOpacity
+            className="bg-primary-600 rounded-full py-3.5 items-center mb-4 active:opacity-90"
+            onPress={() => navigation.navigate('NewExpense', { editExpense: expenseRow })}
+            accessibilityRole="button"
+            accessibilityLabel={
+              expenseRow.status === 'rejected' ? t('expense.editAndResubmit') : t('common.edit')
+            }
+          >
+            <Text className="text-white font-bold text-base">
+              {expenseRow.status === 'rejected' ? t('expense.editAndResubmit') : t('common.edit')}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {canReview && (

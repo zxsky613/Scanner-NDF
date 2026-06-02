@@ -18,12 +18,13 @@ const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the 
   "amount_ht": number (amount excluding tax),
   "amount_ttc": number (total amount including tax),
   "vat_details": [{"rate": number, "base": number, "amount": number}],
-  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "other",
+  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "local_procurement" | "other",
   "confidence": number (0-1)
 }
 Classify "category" as exactly one lowercase key:
 food (meals, restaurants), materials (supplies, hardware), travel (fuel, taxi, train, flights, parking),
-lodging (hotels, accommodation, 住宿), equipment_rental (renting tools/equipment, 设备租赁, location matériel), other (else).
+lodging (hotels, accommodation, 住宿), equipment_rental (renting tools/equipment, 设备租赁, location matériel),
+local_procurement (local purchases on behalf of equipment suppliers, 替设备商本地代采), other (else).
 Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
 For "city": city name where purchase occurred from address/footer on ticket; if unknown use "".
 Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;

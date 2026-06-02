@@ -55,6 +55,7 @@ const categories: { value: ExpenseCategory; icon: string }[] = [
   { value: 'travel', icon: '🚗' },
   { value: 'lodging', icon: '🏨' },
   { value: 'equipment_rental', icon: '📦' },
+  { value: 'local_procurement', icon: '🛒' },
   { value: 'other', icon: '📋' },
 ];
 
@@ -89,6 +90,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const pageX = IS_WEB ? WEB_PAGE_GUTTER_CLASS : 'px-5';
   const { createExpense, updateExpense, checkDuplicate } = useExpenses(profile.id);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingWasRejected, setEditingWasRejected] = useState(false);
   const [initialReceiptUrl, setInitialReceiptUrl] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -156,10 +158,12 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   useEffect(() => {
     if (!editExpense?.id) {
       setEditingId(null);
+      setEditingWasRejected(false);
       setInitialReceiptUrl(null);
       return;
     }
     setEditingId(editExpense.id);
+    setEditingWasRejected(editExpense.status === 'rejected');
     setInitialReceiptUrl(editExpense.receipt_image_url ?? null);
     setReceiptDateInput(isoToDmyInput(editExpense.receipt_date));
     setSupplier(editExpense.supplier);
@@ -405,7 +409,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         if (error) throw error;
         showAppAlert(
           t('common.success'),
-          t('expense.updateSuccess'),
+          t(editingWasRejected ? 'expense.resubmitSuccess' : 'expense.updateSuccess'),
           'success',
           () => navigation.goBack()
         );

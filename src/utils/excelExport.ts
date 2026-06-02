@@ -20,6 +20,7 @@ export const exportToExcel = async (expenses: Expense[]): Promise<void> => {
       .join(' | '),
     [t('expense.amountTTC')]: e.amount_ttc,
     [t('expense.category')]: t(`expense.${e.category}`),
+    [t('expense.description')]: e.description?.trim() ?? '',
     [t('expense.project')]: e.projects?.name?.trim()
       ? e.projects.name
       : t('expense.projectDaily'),

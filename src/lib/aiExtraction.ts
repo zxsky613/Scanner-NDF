@@ -21,6 +21,7 @@ Also classify the expense into exactly one "category" string (must be one of the
 - travel: fuel, taxis, trains, flights, parking, mileage, public transport for business trips
 - lodging: accommodation, hotels, hostels, 住宿 (nights, room charges)
 - equipment_rental: renting tools or equipment, location de matériel, 设备租赁
+- local_procurement: local purchases on behalf of equipment suppliers, 替设备商本地代采, achats locaux pour équipementier
 - other: anything that does not clearly fit above
 `.trim();
 
@@ -32,7 +33,7 @@ const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the 
   "amount_ht": number (amount excluding tax),
   "amount_ttc": number (total amount including tax),
   "vat_details": [{"rate": number, "base": number, "amount": number}],
-  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "other",
+  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "local_procurement" | "other",
   "confidence": number (0-1)
 }
 ${CATEGORY_PROMPT_LINES}

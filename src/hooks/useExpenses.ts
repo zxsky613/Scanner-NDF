@@ -282,6 +282,18 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
   ) => {
     if (!userId) return { error: new Error('Not authenticated') };
 
+    const { data: currentRow, error: fetchErr } = await supabase
+      .from('expenses')
+      .select('status')
+      .eq('id', expenseId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchErr) return { error: fetchErr };
+    if (!currentRow) return { error: new Error('EXPENSE_NOT_FOUND') };
+
+    const resubmitAfterRejection = currentRow.status === 'rejected';
+
     const baseUpdate = {
       receipt_date: expense.receipt_date,
       supplier: expense.supplier,
@@ -294,6 +306,14 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       receipt_image_url: expense.receipt_image_url,
       accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],
       is_fiscal_alert: expense.amount_ttc > FISCAL_ALERT_THRESHOLD,
+      ...(resubmitAfterRejection
+        ? {
+            status: 'pending' as const,
+            reviewed_by: null,
+            reviewed_at: null,
+            rejection_reason: null,
+          }
+        : {}),
     };
 
     const tryUpdate = async (withProject: boolean, select: string) => {

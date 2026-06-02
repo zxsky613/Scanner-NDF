@@ -363,7 +363,7 @@ export const SettingsScreen: React.FC<Props> = ({ profile, onLogout, onChangePas
               </AppNameText>
             }
           />
-          <InfoRow label={t('settings.version')} value="1.0.1" />
+          <InfoRow label={t('settings.version')} value="1.0.2" />
         </View>
 
         <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">

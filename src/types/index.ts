@@ -12,6 +12,7 @@ export type ExpenseCategory =
   | 'travel'
   | 'lodging'
   | 'equipment_rental'
+  | 'local_procurement'
   | 'other';
 
 /** Liste exhaustive des clés catégorie (IA, filtres, compta). */
@@ -21,6 +22,7 @@ export const EXPENSE_CATEGORY_KEYS: ExpenseCategory[] = [
   'travel',
   'lodging',
   'equipment_rental',
+  'local_procurement',
   'other',
 ];
 export type SupportedLanguage = 'fr' | 'en' | 'zh';
@@ -176,5 +178,6 @@ export const CATEGORY_ACCOUNTING_CODES: Record<ExpenseCategory, string> = {
   travel: '625600',
   lodging: '625200',
   equipment_rental: '613200',
+  local_procurement: '606300',
   other: '628000',
 };

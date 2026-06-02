@@ -62,6 +62,7 @@ const categoryOptions: (ExpenseCategory | 'all')[] = [
   'travel',
   'lodging',
   'equipment_rental',
+  'local_procurement',
   'other',
 ];
 
