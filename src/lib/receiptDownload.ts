@@ -5,6 +5,7 @@ import { resolveReceiptImageUri } from './receiptImageUrl';
 
 function inferMimeType(fileName: string): string {
   const lower = fileName.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.gif')) return 'image/gif';
@@ -15,7 +16,7 @@ function inferMimeType(fileName: string): string {
 export function suggestReceiptFileName(expenseId: string, storedUrl: string | null | undefined): string {
   const safeId = expenseId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
   const url = storedUrl ?? '';
-  const m = url.match(/\.(jpe?g|png|gif|webp)(\?|#|$)/i);
+  const m = url.match(/\.(pdf|jpe?g|png|gif|webp)(\?|#|$)/i);
   const ext = m ? m[1].toLowerCase().replace('jpeg', 'jpg') : 'jpg';
   return `ticket-${safeId}.${ext}`;
 }

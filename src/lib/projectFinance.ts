@@ -5,6 +5,7 @@ export const PROJECT_STATUSES_REQUIRING_CONTRACT_AMOUNT: ProjectStatus[] = [
   'quote',
   'contract',
   'delivery',
+  'completed',
 ];
 
 export function projectStatusRequiresContractAmount(status: ProjectStatus): boolean {
@@ -23,7 +24,8 @@ export function salesShouldPromptContractAmount(params: {
   const { prevStatus, nextStatus, currentContractAmount } = params;
   const wasBelow = !projectStatusRequiresContractAmount(prevStatus);
   const dropToQuote =
-    nextStatus === 'quote' && (prevStatus === 'contract' || prevStatus === 'delivery');
+    nextStatus === 'quote' &&
+    (prevStatus === 'contract' || prevStatus === 'delivery' || prevStatus === 'completed');
   const missing = currentContractAmount == null || Number.isNaN(Number(currentContractAmount));
   return wasBelow || dropToQuote || missing;
 }

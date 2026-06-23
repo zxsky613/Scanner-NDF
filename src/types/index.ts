@@ -6,6 +6,7 @@ export type LegacyManagerRole = 'manager';
 
 export type StoredUserRole = UserRole | LegacyManagerRole;
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected';
+export type ExpensePaymentMethod = 'card' | 'cash';
 export type ExpenseCategory =
   | 'food'
   | 'materials'
@@ -34,7 +35,7 @@ export type ProjectCategory =
   | 'office_renovation'
   | 'procurement_equipment';
 
-export type ProjectStatus = 'lead' | 'quote' | 'contract' | 'delivery' | 'lost';
+export type ProjectStatus = 'lead' | 'quote' | 'contract' | 'delivery' | 'completed' | 'lost';
 
 export const PROJECT_CATEGORY_KEYS: ProjectCategory[] = [
   'sorting_equipment',
@@ -49,6 +50,7 @@ export const PROJECT_STATUS_KEYS: ProjectStatus[] = [
   'quote',
   'contract',
   'delivery',
+  'completed',
   'lost',
 ];
 
@@ -107,6 +109,8 @@ export interface Expense {
   amount_ttc: number;
   vat_details: VatDetail[];
   category: ExpenseCategory;
+  /** Carte bancaire ou espèces. */
+  payment_method?: ExpensePaymentMethod | null;
   accounting_code?: string;
   description?: string;
   status: ExpenseStatus;
@@ -122,6 +126,8 @@ export interface Expense {
   project_id?: string | null;
   projects?: { id: string; name: string } | null;
   profiles?: Profile;
+  /** Admin (manager / finance) ayant approuvé ou refusé la note. */
+  reviewer?: Pick<Profile, 'id' | 'full_name' | 'email'>;
 }
 
 export interface AIExtractionResult {

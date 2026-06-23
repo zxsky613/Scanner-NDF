@@ -4,31 +4,48 @@ import { supabase } from '../config/supabase';
 import { STORAGE_BUCKET } from '../config/constants';
 import { decode } from 'base64-arraybuffer';
 import i18n from '../i18n';
+import {
+  receiptContentType,
+  receiptStorageExtension,
+  RECEIPT_MAX_BYTES,
+} from './receiptMime';
 
-async function imageUriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
+async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (Platform.OS === 'web') {
     const res = await fetch(uri);
     if (!res.ok) {
       throw new Error(i18n.t('errors.storageImageRead', { status: String(res.status) }));
     }
-    return await res.arrayBuffer();
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > RECEIPT_MAX_BYTES) {
+      throw new Error(i18n.t('errors.receiptFileTooLarge'));
+    }
+    return buf;
   }
   const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+  const approxBytes = Math.floor((base64.length * 3) / 4);
+  if (approxBytes > RECEIPT_MAX_BYTES) {
+    throw new Error(i18n.t('errors.receiptFileTooLarge'));
+  }
   return decode(base64);
 }
 
-export const uploadReceiptImage = async (
+export const uploadReceiptFile = async (
   uri: string,
-  userId: string
+  userId: string,
+  mimeType?: string | null,
+  fileName?: string | null
 ): Promise<string | null> => {
   try {
-    const body = await imageUriToArrayBuffer(uri);
-    const fileName = `${userId}/${Date.now()}.jpg`;
+    const body = await uriToArrayBuffer(uri);
+    const ext = receiptStorageExtension(uri, mimeType, fileName);
+    const contentType = receiptContentType(uri, mimeType, fileName);
+    const fileNameStored = `${userId}/${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(fileName, body, {
-        contentType: 'image/jpeg',
+      .upload(fileNameStored, body, {
+        contentType,
         upsert: false,
       });
 
@@ -36,7 +53,7 @@ export const uploadReceiptImage = async (
 
     const { data: urlData } = supabase.storage
       .from(STORAGE_BUCKET)
-      .getPublicUrl(fileName);
+      .getPublicUrl(fileNameStored);
 
     return urlData.publicUrl;
   } catch (err) {
@@ -44,3 +61,6 @@ export const uploadReceiptImage = async (
     return null;
   }
 };
+
+/** @deprecated Utiliser uploadReceiptFile */
+export const uploadReceiptImage = uploadReceiptFile;

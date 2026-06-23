@@ -25,13 +25,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { showAppAlert } from '../../utils/alert';
 import { formatDate, formatCurrency } from '../../utils/dateFormat';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
+import { isPdfReceipt } from '../../lib/receiptMime';
 import { downloadReceiptFile, suggestReceiptFileName } from '../../lib/receiptDownload';
 import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IS_WEB, WEB_PAGE_GUTTER_CLASS } from '../../config/webLayout';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
-import { ZoomableReceiptImage } from '../../components/ZoomableReceiptImage';
+import { ReceiptPreview, ReceiptThumbnail } from '../../components/ReceiptPreview';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -95,10 +96,20 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
           .maybeSingle();
         if (cancelled || error || !data) return;
         const row = data as Expense & { projects?: { id: string; name: string } | null };
+        let reviewer: Expense['reviewer'];
+        if (row.reviewed_by) {
+          const { data: revProf } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .eq('id', row.reviewed_by)
+            .maybeSingle();
+          if (revProf) reviewer = revProf;
+        }
         setExpenseRow(prev => ({
           ...(row as Expense),
           projects: row.projects ?? null,
           profiles: prev.profiles,
+          reviewer: reviewer ?? prev.reviewer,
         }));
       })();
       return () => {
@@ -168,6 +179,7 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
   };
 
   const hasReceipt = !!expenseRow.receipt_image_url?.trim();
+  const receiptIsPdf = isPdfReceipt(expenseRow.receipt_image_url);
   const canDownloadReceipt =
     hasReceipt && !!viewerProfile && isReviewerRole(viewerProfile.role);
 
@@ -255,11 +267,19 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
                     {thumbLoading ? (
                       <ActivityIndicator size="small" color={theme.brandPrimary} />
                     ) : thumbUri ? (
-                      <Image
-                        source={{ uri: thumbUri }}
-                        style={{ width: THUMB, height: THUMB }}
-                        resizeMode="cover"
-                      />
+                      receiptIsPdf ? (
+                        <ReceiptThumbnail
+                          uri={thumbUri}
+                          mimeType="application/pdf"
+                          size={THUMB}
+                        />
+                      ) : (
+                        <Image
+                          source={{ uri: thumbUri }}
+                          style={{ width: THUMB, height: THUMB }}
+                          resizeMode="cover"
+                        />
+                      )
                     ) : (
                       <Text className="text-3xl">📷</Text>
                     )}
@@ -339,6 +359,12 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
             }
           />
           <InfoRow label={t('expense.category')} value={t(`expense.${expenseRow.category}`)} />
+          {expenseRow.payment_method ? (
+            <InfoRow
+              label={t('expense.paymentMethod')}
+              value={t(`expense.paymentMethod_${expenseRow.payment_method}`)}
+            />
+          ) : null}
           {expenseRow.description && (
             <InfoRow label={t('expense.description')} value={expenseRow.description} />
           )}
@@ -375,10 +401,23 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
           </View>
         )}
 
-        {expenseRow.rejection_reason && (
+        {expenseRow.status === 'rejected' && (
           <View className="bg-red-50 rounded-[22px] p-4 mb-4 border border-red-100">
-            <Text className="text-red-800 font-bold">{t('admin.rejectionReason')}</Text>
-            <Text className="text-red-600 text-sm mt-1">{expenseRow.rejection_reason}</Text>
+            {expenseRow.reviewer?.full_name ? (
+              <Text className="text-red-800 font-bold">
+                {t('expense.rejectedBy', { name: expenseRow.reviewer.full_name })}
+              </Text>
+            ) : null}
+            {expenseRow.rejection_reason ? (
+              <>
+                <Text
+                  className={`text-red-800 font-bold ${expenseRow.reviewer?.full_name ? 'mt-3' : ''}`}
+                >
+                  {t('admin.rejectionReason')}
+                </Text>
+                <Text className="text-red-600 text-sm mt-1">{expenseRow.rejection_reason}</Text>
+              </>
+            ) : null}
           </View>
         )}
 
@@ -425,6 +464,11 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
                     reviewed_by: viewerProfile.id,
                     reviewed_at: now,
                     rejection_reason: undefined,
+                    reviewer: {
+                      id: viewerProfile.id,
+                      full_name: viewerProfile.full_name,
+                      email: viewerProfile.email,
+                    },
                   }));
                 }}
               >
@@ -501,11 +545,13 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
                 </View>
               )}
               {!modalLoading && modalUri && !modalError && (
-                <ZoomableReceiptImage
+                <ReceiptPreview
                   key={modalUri}
                   uri={modalUri}
+                  mimeType={receiptIsPdf ? 'application/pdf' : 'image/jpeg'}
                   width={windowW - 16}
                   height={modalImageMaxH}
+                  zoomable={!receiptIsPdf}
                   onError={() => setModalError(true)}
                 />
               )}
@@ -568,6 +614,11 @@ export const ExpenseDetailScreen: React.FC<Props> = ({
                     reviewed_by: viewerProfile.id,
                     reviewed_at: now,
                     rejection_reason: rejectionReason || undefined,
+                    reviewer: {
+                      id: viewerProfile.id,
+                      full_name: viewerProfile.full_name,
+                      email: viewerProfile.email,
+                    },
                   }));
                   setRejectModal(false);
                   setRejectionReason('');

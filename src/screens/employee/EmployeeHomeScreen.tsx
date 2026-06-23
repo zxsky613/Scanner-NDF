@@ -248,6 +248,11 @@ function WebExpenseRowWeb({
                     {t(`expense.${item.status}`)}
                   </Text>
                 </View>
+                {item.status === 'rejected' && item.reviewer?.full_name ? (
+                  <Text className="text-[10px] text-red-600 mt-0.5" numberOfLines={1}>
+                    {t('expense.rejectedBy', { name: item.reviewer.full_name })}
+                  </Text>
+                ) : null}
               </View>
             </Pressable>
             {menuBtn}
@@ -678,6 +683,11 @@ export const EmployeeHomeScreen: React.FC<Props> = ({ navigation, profile }) => 
                       {t(`expense.${item.status}`)}
                     </Text>
                   </View>
+                  {item.status === 'rejected' && item.reviewer?.full_name ? (
+                    <Text className="text-[10px] text-red-600 mt-1 text-right" numberOfLines={1}>
+                      {t('expense.rejectedBy', { name: item.reviewer.full_name })}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
               {item.is_fiscal_alert && (

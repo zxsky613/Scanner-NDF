@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -8,9 +9,10 @@ const corsHeaders: Record<string, string> = {
 };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const TEXT_MODEL = "llama-3.3-70b-versatile";
 
-const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt image and return ONLY valid JSON:
+const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt and return ONLY valid JSON:
 {
   "date": "YYYY-MM-DD",
   "supplier": "string",
@@ -28,6 +30,13 @@ local_procurement (local purchases on behalf of equipment suppliers, 替设备�
 Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
 For "city": city name where purchase occurred from address/footer on ticket; if unknown use "".
 Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
+
+async function pdfBase64ToText(pdfBase64: string): Promise<string> {
+  const binary = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
+  const pdf = await getDocumentProxy(binary);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return text.trim();
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -77,19 +86,59 @@ Deno.serve(async (req) => {
       );
     }
 
-    const safeMime =
-      typeof mime === "string" && /^image\/[\w.+-]+$/.test(mime)
-        ? mime
-        : "image/jpeg";
+    const isPdf =
+      typeof mime === "string" &&
+      (mime === "application/pdf" || mime === "application/x-pdf");
 
-    const groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
+    let groqBody: Record<string, unknown>;
+
+    if (isPdf) {
+      let pdfText: string;
+      try {
+        pdfText = await pdfBase64ToText(base64);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return new Response(
+          JSON.stringify({ error: `PDF read failed: ${msg}` }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (pdfText.length < 12) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "PDF without readable text (scanned image). Use a photo or a digital PDF receipt.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      groqBody = {
+        model: TEXT_MODEL,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `Extract the data from this receipt text:\n\n${pdfText}`,
+          },
+        ],
+        max_tokens: 850,
+      };
+    } else {
+      const safeMime =
+        typeof mime === "string" && /^image\/[\w.+-]+$/.test(mime)
+          ? mime
+          : "image/jpeg";
+
+      groqBody = {
+        model: VISION_MODEL,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           {
@@ -104,7 +153,16 @@ Deno.serve(async (req) => {
           },
         ],
         max_tokens: 850,
-      }),
+      };
+    }
+
+    const groqRes = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${groqKey}`,
+      },
+      body: JSON.stringify(groqBody),
     });
 
     const groqJson = (await groqRes.json()) as {

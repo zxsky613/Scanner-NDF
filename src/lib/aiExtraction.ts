@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 import { AI_API_URL, AI_API_KEY, AI_MODEL } from '../config/constants';
 import { supabase } from '../config/supabase';
 import i18n from '../i18n';
+import { isPdfReceipt, RECEIPT_MAX_BYTES } from './receiptMime';
+import { pdfUriToJpegDataUri } from './pdfToImage';
 import {
   AIExtractionResult,
   ExpenseCategory,
@@ -53,7 +55,7 @@ function parseCategoryFromAi(raw: unknown): ExpenseCategory | undefined {
  * ImagePicker / Camera peuvent fournir du base64 directement.
  * Sur le web, les URI `blob:` → fetch + FileReader.
  */
-async function getImageBase64(
+async function getFileBase64(
   uri: string,
   inlineBase64?: string | null
 ): Promise<{ base64: string; mime: string }> {
@@ -74,6 +76,9 @@ async function getImageBase64(
       throw new Error(i18n.t('errors.aiImageReadWeb', { status: String(res.status) }));
     }
     const blob = await res.blob();
+    if (blob.size > RECEIPT_MAX_BYTES) {
+      throw new Error(i18n.t('errors.receiptFileTooLarge'));
+    }
     const mime =
       blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'image/jpeg';
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -88,6 +93,10 @@ async function getImageBase64(
   }
 
   const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+  const approxBytes = Math.floor((base64.length * 3) / 4);
+  if (approxBytes > RECEIPT_MAX_BYTES) {
+    throw new Error(i18n.t('errors.receiptFileTooLarge'));
+  }
   return { base64, mime: 'image/jpeg' };
 }
 
@@ -118,7 +127,7 @@ async function prepareImageForGroq(
     }
     return { base64: b64, mime: 'image/jpeg' };
   } catch {
-    const fallback = await getImageBase64(uri, inlineBase64);
+    const fallback = await getFileBase64(uri, inlineBase64);
     if (fallback.base64.length > MAX_B64_CHARS) {
       throw new Error(i18n.t('errors.aiImageTooHeavy'));
     }
@@ -213,11 +222,38 @@ async function extractViaEdgeFunction(
 
 export const extractReceiptData = async (
   imageUri: string,
-  inlineBase64?: string | null
+  inlineBase64?: string | null,
+  options?: { mimeType?: string | null; fileName?: string | null }
 ): Promise<AIExtractionResult> => {
   /* Sur iOS/Android la clé est utilisée en direct ; sur le web, Groq passe par Supabase (secret GROQ_API_KEY). */
   if (Platform.OS !== 'web' && !AI_API_KEY?.trim()) {
     throw new Error(i18n.t('errors.aiGroqKeyMissing'));
+  }
+
+  const isPdf = isPdfReceipt(imageUri, options?.mimeType, options?.fileName);
+
+  if (isPdf) {
+    let content: string;
+    if (Platform.OS === 'web') {
+      try {
+        const { base64, uri: jpegUri } = await pdfUriToJpegDataUri(imageUri);
+        const { base64: prepared, mime } = await prepareImageForGroq(jpegUri, base64);
+        content = await extractViaEdgeFunction(prepared, mime);
+      } catch {
+        const pdfFile = await getFileBase64(imageUri, inlineBase64);
+        if (pdfFile.base64.length > MAX_B64_CHARS) {
+          throw new Error(i18n.t('errors.receiptFileTooLarge'));
+        }
+        content = await extractViaEdgeFunction(pdfFile.base64, 'application/pdf');
+      }
+    } else {
+      const pdfFile = await getFileBase64(imageUri, inlineBase64);
+      if (pdfFile.base64.length > MAX_B64_CHARS) {
+        throw new Error(i18n.t('errors.receiptFileTooLarge'));
+      }
+      content = await extractViaEdgeFunction(pdfFile.base64, 'application/pdf');
+    }
+    return parseAiJsonContent(content);
   }
 
   const { base64, mime } = await prepareImageForGroq(imageUri, inlineBase64);

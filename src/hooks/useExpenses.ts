@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../config/supabase';
 import { submitExpenseReview } from '../lib/expenseReview';
-import { Expense, ExpenseFilters, ExpenseCategory, VatDetail, CATEGORY_ACCOUNTING_CODES } from '../types';
+import { Expense, ExpenseFilters, ExpenseCategory, ExpensePaymentMethod, VatDetail, CATEGORY_ACCOUNTING_CODES } from '../types';
 import { FISCAL_ALERT_THRESHOLD } from '../config/constants';
 
 export type FetchExpensesResult = { ok: true; count: number } | { ok: false };
@@ -23,6 +23,7 @@ function looksLikeProjectSchemaError(err: unknown): boolean {
   const m = raw.toLowerCase();
   return (
     m.includes('project_id') ||
+    m.includes('payment_method') ||
     m.includes('projects') ||
     m.includes('schema cache') ||
     m.includes('could not find') ||
@@ -116,14 +117,18 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       }
 
       const list = rows;
-      const ids = [...new Set(list.map(r => r.user_id).filter(Boolean))] as string[];
+      const profileIds = [
+        ...new Set(
+          list.flatMap(r => [r.user_id, r.reviewed_by].filter(Boolean))
+        ),
+      ] as string[];
 
       const profileById: Record<string, { full_name: string; email: string; id: string }> = {};
-      if (ids.length > 0) {
+      if (profileIds.length > 0) {
         const { data: profs, error: pErr } = await supabase
           .from('profiles')
           .select('id, full_name, email')
-          .in('id', ids);
+          .in('id', profileIds);
         if (pErr) throw pErr;
         for (const p of profs ?? []) {
           profileById[p.id] = p;
@@ -139,6 +144,9 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
             projects: r.projects ?? null,
             profiles: profileById[row.user_id]
               ? (profileById[row.user_id] as Expense['profiles'])
+              : undefined,
+            reviewer: row.reviewed_by && profileById[row.reviewed_by]
+              ? profileById[row.reviewed_by]
               : undefined,
           };
         })
@@ -173,6 +181,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     amount_ttc: number;
     vat_details: VatDetail[];
     category: ExpenseCategory;
+    payment_method: ExpensePaymentMethod;
     description?: string;
     receipt_image_url?: string;
     project_id?: string | null;
@@ -187,6 +196,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       amount_ttc: expense.amount_ttc,
       vat_details: expense.vat_details,
       category: expense.category,
+      payment_method: expense.payment_method,
       description: expense.description,
       receipt_image_url: expense.receipt_image_url,
       user_id: userId,
@@ -244,13 +254,26 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
     expenseId: string,
     status: 'approved' | 'rejected',
     reviewerId: string,
-    rejectionReason?: string
+    rejectionReason?: string,
+    reviewer?: Expense['reviewer']
   ) => {
     const { error } = await submitExpenseReview(expenseId, status, reviewerId, rejectionReason);
 
     if (!error) {
+      const now = new Date().toISOString();
       setExpenses(prev =>
-        prev.map(e => e.id === expenseId ? { ...e, status, reviewed_by: reviewerId } : e)
+        prev.map(e =>
+          e.id === expenseId
+            ? {
+                ...e,
+                status,
+                reviewed_by: reviewerId,
+                reviewed_at: now,
+                rejection_reason: rejectionReason,
+                reviewer: reviewer ?? e.reviewer,
+              }
+            : e
+        )
       );
     }
     return { error };
@@ -275,6 +298,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       amount_ttc: number;
       vat_details: VatDetail[];
       category: ExpenseCategory;
+      payment_method: ExpensePaymentMethod;
       description?: string;
       receipt_image_url?: string;
       project_id?: string | null;
@@ -302,6 +326,7 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
       amount_ttc: expense.amount_ttc,
       vat_details: expense.vat_details,
       category: expense.category,
+      payment_method: expense.payment_method,
       description: expense.description,
       receipt_image_url: expense.receipt_image_url,
       accounting_code: CATEGORY_ACCOUNTING_CODES[expense.category],

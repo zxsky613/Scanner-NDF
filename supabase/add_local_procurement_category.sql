@@ -15,6 +15,7 @@ BEGIN
 END $$;
 
 DROP POLICY IF EXISTS "Users can update own pending expenses" ON public.expenses;
+DROP POLICY IF EXISTS "Users can update own pending or rejected expenses" ON public.expenses;
 
 CREATE POLICY "Users can update own pending or rejected expenses"
   ON public.expenses FOR UPDATE

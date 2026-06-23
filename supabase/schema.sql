@@ -31,6 +31,7 @@ CREATE TYPE project_status AS ENUM (
   'quote',
   'contract',
   'delivery',
+  'completed',
   'lost'
 );
 
@@ -167,6 +168,7 @@ CREATE TABLE expenses (
   
   -- Category & classification
   category expense_category NOT NULL,
+  payment_method TEXT CHECK (payment_method IS NULL OR payment_method IN ('card', 'cash')),
   accounting_code TEXT,
   description TEXT,
   

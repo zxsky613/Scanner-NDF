@@ -362,7 +362,11 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   };
 
   const handleApprove = async (expenseId: string) => {
-    const { error } = await updateExpenseStatus(expenseId, 'approved', profile.id);
+    const { error } = await updateExpenseStatus(expenseId, 'approved', profile.id, undefined, {
+      id: profile.id,
+      full_name: profile.full_name,
+      email: profile.email,
+    });
     if (error) showAppAlert(t('common.error'), error.message, 'error');
     else void syncNotificationsAndPendingBadge();
   };
@@ -373,7 +377,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
       rejectModal,
       'rejected',
       profile.id,
-      rejectionReason
+      rejectionReason,
+      { id: profile.id, full_name: profile.full_name, email: profile.email }
     );
     if (error) showAppAlert(t('common.error'), error.message, 'error');
     else void syncNotificationsAndPendingBadge();

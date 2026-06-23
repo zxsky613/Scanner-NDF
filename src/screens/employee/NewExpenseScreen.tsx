@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -19,17 +18,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
-import { Profile, Expense, ExpenseCategory, VatDetail } from '../../types';
+import { Profile, Expense, ExpenseCategory, ExpensePaymentMethod, VatDetail } from '../../types';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useProjects } from '../../hooks/useProjects';
 import { extractReceiptData } from '../../lib/aiExtraction';
-import { uploadReceiptImage } from '../../lib/storage';
+import { uploadReceiptFile } from '../../lib/storage';
 import { resolveReceiptImageUri } from '../../lib/receiptImageUrl';
+import { isPdfReceipt, RECEIPT_MAX_BYTES } from '../../lib/receiptMime';
 import { FISCAL_ALERT_THRESHOLD } from '../../config/constants';
 import { formatCurrency, maskDateDMY, isoToDmyInput, dmyInputToIso } from '../../utils/dateFormat';
 import { formatAmountThousandsSpaces, formatMoneyInputInitial } from '../../utils/formatAmountInput';
@@ -38,7 +38,7 @@ import { theme, headerPaddingTop, heroHeaderShadow } from '../../config/theme';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { IS_WEB, WEB_PAGE_GUTTER_CLASS, WEB_RIGHT_PANEL_W } from '../../config/webLayout';
-import { ZoomableReceiptImage } from '../../components/ZoomableReceiptImage';
+import { ReceiptPreview, ReceiptThumbnail } from '../../components/ReceiptPreview';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -81,6 +81,11 @@ function formatSubmitFailureDetail(err: unknown): string {
   return String(err);
 }
 
+const paymentMethods: { value: ExpensePaymentMethod; icon: string }[] = [
+  { value: 'card', icon: '💳' },
+  { value: 'cash', icon: '💵' },
+];
+
 export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const { t } = useTranslation();
   const route = useRoute<RouteProp<NewExpenseRouteParams, 'NewExpense'>>();
@@ -95,6 +100,8 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const [permission, requestPermission] = useCameraPermissions();
 
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [receiptMimeType, setReceiptMimeType] = useState<string | null>(null);
+  const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
   /** URL réellement affichable (signée / locale) — `imageUri` garde l’URL stockée ou le fichier local pour l’upload. */
   const [receiptDisplayUri, setReceiptDisplayUri] = useState<string | null>(null);
   const [receiptUriLoading, setReceiptUriLoading] = useState(false);
@@ -116,6 +123,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     { rate: 20, base: 0, amount: 0 },
   ]);
   const [category, setCategory] = useState<ExpenseCategory>('food');
+  const [paymentMethod, setPaymentMethod] = useState<ExpensePaymentMethod | null>(null);
   const [description, setDescription] = useState('');
   /** null = option « Quotidien » (pas de projet en base). */
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -171,6 +179,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     setAmountHT(formatMoneyInputInitial(roundMoney(editExpense.amount_ht)));
     setAmountTTC(formatMoneyInputInitial(roundMoney(editExpense.amount_ttc)));
     setCategory(editExpense.category);
+    setPaymentMethod(
+      editExpense.payment_method === 'card' || editExpense.payment_method === 'cash'
+        ? editExpense.payment_method
+        : null
+    );
     setProjectId(
       editExpense.project_id && String(editExpense.project_id).trim()
         ? String(editExpense.project_id)
@@ -178,6 +191,13 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     );
     setDescription(editExpense.description ?? '');
     setImageUri(editExpense.receipt_image_url ?? null);
+    const storedReceipt = editExpense.receipt_image_url ?? null;
+    if (storedReceipt && isPdfReceipt(storedReceipt)) {
+      setReceiptMimeType('application/pdf');
+    } else {
+      setReceiptMimeType('image/jpeg');
+    }
+    setReceiptFileName(null);
     const vatAmt = roundMoney(Math.max(0, editExpense.amount_ttc - editExpense.amount_ht));
     const rate =
       editExpense.amount_ht > 0.001
@@ -211,31 +231,47 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         base64: true,
       });
       if (photo) {
+        setReceiptMimeType('image/jpeg');
+        setReceiptFileName(null);
         setImageUri(photo.uri);
         setShowCamera(false);
-        analyzeImage(photo.uri, photo.base64 ?? null);
+        analyzeReceipt(photo.uri, photo.base64 ?? null, 'image/jpeg');
       }
     }
   };
 
-  const handlePickImage = async () => {
+  const handlePickReceipt = async () => {
     setReceiptMenuVisible(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      base64: true,
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'application/pdf'],
+      copyToCacheDirectory: true,
+      multiple: false,
     });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setImageUri(asset.uri);
-      analyzeImage(asset.uri, asset.base64 ?? null);
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? null;
+    const name = asset.name ?? null;
+    if (typeof asset.size === 'number' && asset.size > RECEIPT_MAX_BYTES) {
+      showAppAlert(t('common.error'), t('errors.receiptFileTooLarge'), 'error');
+      return;
     }
+
+    setReceiptMimeType(mime);
+    setReceiptFileName(name);
+    setImageUri(asset.uri);
+    analyzeReceipt(asset.uri, null, mime, name);
   };
 
-  const analyzeImage = async (uri: string, inlineBase64?: string | null) => {
+  const analyzeReceipt = async (
+    uri: string,
+    inlineBase64?: string | null,
+    mimeType?: string | null,
+    fileName?: string | null
+  ) => {
     setAnalyzing(true);
     try {
-      const data = await extractReceiptData(uri, inlineBase64);
+      const data = await extractReceiptData(uri, inlineBase64, { mimeType, fileName });
       setReceiptDateInput(isoToDmyInput(data.date));
       setSupplier(data.supplier);
       if (data.city?.trim()) setCity(data.city.trim());
@@ -333,6 +369,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       return;
     }
 
+    if (!paymentMethod) {
+      showAppAlert(t('common.error'), t('expense.paymentMethodRequired'), 'error');
+      return;
+    }
+
     if (!imageUri?.trim()) {
       showAppAlert(t('common.error'), t('expense.receiptRequired'), 'error');
       return;
@@ -379,7 +420,12 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         if (imageUri && /^https?:\/\//i.test(imageUri.trim())) {
           receiptUrl = imageUri.trim().split(/[?#]/)[0];
         } else if (imageUri) {
-          const up = await uploadReceiptImage(imageUri, profile.id);
+          const up = await uploadReceiptFile(
+            imageUri,
+            profile.id,
+            receiptMimeType,
+            receiptFileName
+          );
           if (!up) {
             showAppAlert(t('common.error'), t('expense.uploadReceiptFailed'), 'error');
             return;
@@ -401,6 +447,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           amount_ttc: ttc,
           vat_details: vatDetails,
           category,
+          payment_method: paymentMethod,
           description: description || undefined,
           receipt_image_url: receiptUrl,
           project_id: projectId,
@@ -414,7 +461,12 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           () => navigation.goBack()
         );
       } else {
-        const up = await uploadReceiptImage(imageUri!, profile.id);
+        const up = await uploadReceiptFile(
+          imageUri!,
+          profile.id,
+          receiptMimeType,
+          receiptFileName
+        );
         if (!up) {
           showAppAlert(t('common.error'), t('expense.uploadReceiptFailed'), 'error');
           return;
@@ -428,6 +480,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           amount_ttc: ttc,
           vat_details: vatDetails,
           category,
+          payment_method: paymentMethod,
           description: description || undefined,
           receipt_image_url: up,
           project_id: projectId,
@@ -530,7 +583,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
-                onPress={handlePickImage}
+                onPress={handlePickReceipt}
               >
                 <Text className="text-2xl mb-1">📁</Text>
                 <Text className="text-gray-700 font-medium text-sm">
@@ -561,10 +614,11 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                     </Text>
                   </View>
                 ) : (
-                  <Image
-                    source={{ uri: receiptDisplayUri ?? imageUri }}
-                    style={styles.receiptCompactImage}
-                    resizeMode="cover"
+                  <ReceiptThumbnail
+                    uri={receiptDisplayUri ?? imageUri}
+                    mimeType={receiptMimeType}
+                    fileName={receiptFileName}
+                    size={64}
                     onError={() => setReceiptImageError(true)}
                   />
                 )}
@@ -659,6 +713,36 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                 />
               </View>
             )}
+          </View>
+
+          {/* Mode de paiement */}
+          <View className="bg-white rounded-[22px] p-5 mb-4 border border-gray-100 shadow-sm">
+            <Text className="text-gray-900 font-bold text-base mb-1">{t('expense.paymentMethod')}</Text>
+            <Text className="text-gray-500 text-xs mb-4 leading-4">{t('expense.paymentMethodHint')}</Text>
+            <View className="flex-row gap-3">
+              {paymentMethods.map(pm => (
+                <TouchableOpacity
+                  key={pm.value}
+                  className={`flex-1 py-4 rounded-2xl items-center border ${
+                    paymentMethod === pm.value
+                      ? 'bg-primary-50 border-primary-500'
+                      : 'bg-surface border-gray-100'
+                  }`}
+                  onPress={() => setPaymentMethod(pm.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: paymentMethod === pm.value }}
+                >
+                  <Text className="text-2xl mb-1">{pm.icon}</Text>
+                  <Text
+                    className={`text-sm font-semibold ${
+                      paymentMethod === pm.value ? 'text-primary-700' : 'text-gray-600'
+                    }`}
+                  >
+                    {t(`expense.paymentMethod_${pm.value}`)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* TVA : uniquement calculée depuis HT + TTC */}
@@ -816,10 +900,17 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               {receiptDisplayUri || imageUri ? (
                 <View className="w-full rounded-lg overflow-hidden border border-gray-200/90 bg-surface mt-3 relative">
                   <GestureHandlerRootView style={{ width: '100%', height: 200 }}>
-                    <ZoomableReceiptImage
+                    <ReceiptPreview
                       uri={(receiptDisplayUri ?? imageUri) as string}
+                      mimeType={receiptMimeType}
+                      fileName={receiptFileName}
                       width={WEB_RIGHT_PANEL_W - 32}
                       height={200}
+                      zoomable={!isPdfReceipt(
+                        (receiptDisplayUri ?? imageUri) as string,
+                        receiptMimeType,
+                        receiptFileName
+                      )}
                       onError={() => setReceiptImageError(true)}
                     />
                   </GestureHandlerRootView>
@@ -859,6 +950,13 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
                   <Text className="text-[13px] font-medium text-gray-500">{t('expense.vatAmount')}</Text>
                   <Text className="text-gray-900 font-medium mt-1">
                     {vatDetails[0] ? `${roundMoney(vatDetails[0].amount).toFixed(2)} €` : '—'}
+                  </Text>
+                </View>
+
+                <View className="mt-3">
+                  <Text className="text-[13px] font-medium text-gray-500">{t('expense.paymentMethod')}</Text>
+                  <Text className="text-gray-900 font-medium mt-1">
+                    {paymentMethod ? t(`expense.paymentMethod_${paymentMethod}`) : '—'}
                   </Text>
                 </View>
 
@@ -960,11 +1058,18 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               }}
             >
               {receiptDisplayUri ?? imageUri ? (
-                <ZoomableReceiptImage
+                <ReceiptPreview
                   key={(receiptDisplayUri ?? imageUri) as string}
                   uri={(receiptDisplayUri ?? imageUri) as string}
+                  mimeType={receiptMimeType}
+                  fileName={receiptFileName}
                   width={windowWidth}
                   height={Math.min(Math.max(windowHeight * 0.78, 280), 900)}
+                  zoomable={!isPdfReceipt(
+                    (receiptDisplayUri ?? imageUri) as string,
+                    receiptMimeType,
+                    receiptFileName
+                  )}
                   onError={() => setReceiptImageError(true)}
                 />
               ) : null}
@@ -1028,7 +1133,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-row items-center px-4 py-4 border-b border-gray-100/90 active:bg-white"
-                onPress={() => void handlePickImage()}
+                onPress={() => void handlePickReceipt()}
               >
                 <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
                   <Ionicons name="images-outline" size={22} color={theme.brandPrimary} />
