@@ -39,6 +39,10 @@ import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { IS_WEB, WEB_PAGE_GUTTER_CLASS, WEB_RIGHT_PANEL_W } from '../../config/webLayout';
 import { ReceiptPreview, ReceiptThumbnail } from '../../components/ReceiptPreview';
+import {
+  getLastExpenseProjectId,
+  setLastExpenseProjectId,
+} from '../../lib/lastExpenseProject';
 
 interface Props {
   navigation: NativeStackNavigationProp<any>;
@@ -135,6 +139,25 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
       void fetchProjects();
     }, [fetchProjects])
   );
+
+  useEffect(() => {
+    if (editExpense?.id) return;
+    let cancelled = false;
+    void getLastExpenseProjectId(profile.id).then(stored => {
+      if (cancelled || stored === undefined) return;
+      setProjectId(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editExpense?.id, profile.id]);
+
+  useEffect(() => {
+    if (editExpense?.id || projectId === null) return;
+    if (projects.length === 0) return;
+    const exists = projects.some(p => p.id === projectId);
+    if (!exists) setProjectId(null);
+  }, [projects, projectId, editExpense?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -487,6 +510,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
         });
 
         if (error) throw error;
+        await setLastExpenseProjectId(profile.id, projectId);
         showAppAlert(
           t('common.success'),
           t('expense.submitSuccess'),
