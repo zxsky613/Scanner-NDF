@@ -365,7 +365,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     }
 
     if (category === 'other' && !description.trim()) {
-      showAppAlert(t('common.error'), t('expense.otherExplainRequired'), 'error');
+      showAppAlert(t('common.error'), t('expense.descriptionRequired'), 'error');
       return;
     }
 
@@ -448,7 +448,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           vat_details: vatDetails,
           category,
           payment_method: paymentMethod,
-          description: description || undefined,
+          description: description.trim(),
           receipt_image_url: receiptUrl,
           project_id: projectId,
         });
@@ -481,7 +481,7 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           vat_details: vatDetails,
           category,
           payment_method: paymentMethod,
-          description: description || undefined,
+          description: description.trim(),
           receipt_image_url: up,
           project_id: projectId,
         });
@@ -700,19 +700,6 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               </View>
             </View>
 
-            {category !== 'other' && (
-              <View className="mb-4">
-                <Text className="text-gray-700 font-medium mb-1.5">{t('expense.description')}</Text>
-                <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t('expense.description')}
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
-            )}
           </View>
 
           {/* Mode de paiement */}
@@ -818,22 +805,21 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               ))}
             </View>
 
-            {category === 'other' && (
+            {category === 'other' ? (
               <View className="mt-4 pt-4 border-t border-gray-100">
-                <Text className="text-gray-800 font-semibold text-sm mb-2">
-                  {t('expense.otherExplainTitle')}
-                </Text>
-                <Text className="text-gray-500 text-xs mb-2">{t('expense.otherExplainHint')}</Text>
+                <Text className="text-gray-700 font-medium mb-1.5">{t('expense.description')}</Text>
+                <Text className="text-gray-500 text-xs mb-2 leading-4">{t('expense.descriptionHint')}</Text>
                 <TextInput
-                  className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-base text-gray-900 min-h-[100px]"
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 min-h-[88px]"
                   value={description}
                   onChangeText={setDescription}
-                  placeholder={t('expense.otherExplainPlaceholder')}
+                  placeholder={t('expense.descriptionPlaceholder')}
                   multiline
+                  numberOfLines={3}
                   textAlignVertical="top"
                 />
               </View>
-            )}
+            ) : null}
           </View>
 
           {/* Submit (mobile ; web : panneau droit) */}

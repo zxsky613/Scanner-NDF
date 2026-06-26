@@ -51,11 +51,8 @@ export const uploadReceiptFile = async (
 
     if (error) throw error;
 
-    const { data: urlData } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(fileNameStored);
-
-    return urlData.publicUrl;
+    // Chemin relatif (bucket privé) — l’app génère une URL signée / data URL à l’affichage.
+    return fileNameStored;
   } catch (err) {
     console.error('Upload error:', err);
     return null;

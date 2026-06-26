@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { createElement } from 'react';
 import { View, Text, Image, StyleSheet, type ImageStyle, type ViewStyle } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { useTranslation } from 'react-i18next';
 import { isPdfReceipt } from '../lib/receiptMime';
 import { ZoomableReceiptImage } from './ZoomableReceiptImage';
@@ -17,21 +16,6 @@ type Props = {
   zoomable?: boolean;
 };
 
-function pdfEmbedHtml(uri: string): string {
-  const safeUri = uri.replace(/"/g, '&quot;');
-  return `<!DOCTYPE html>
-<html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0">
-<style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #111; }
-  embed, iframe { width: 100%; height: 100%; border: 0; }
-</style>
-</head>
-<body>
-  <embed src="${safeUri}" type="application/pdf" />
-</body></html>`;
-}
-
 export function ReceiptPreview({
   uri,
   mimeType,
@@ -46,21 +30,14 @@ export function ReceiptPreview({
   const isPdf = isPdfReceipt(uri, mimeType, fileName);
 
   if (isPdf) {
-    const isInlineUri =
-      uri.startsWith('data:') || uri.startsWith('file://') || uri.startsWith('blob:');
-
     return (
       <View style={[{ width, height, overflow: 'hidden', backgroundColor: '#111' }, containerStyle]}>
-        <WebView
-          source={isInlineUri ? { uri } : { html: pdfEmbedHtml(uri) }}
-          style={{ flex: 1, backgroundColor: '#111' }}
-          originWhitelist={['*']}
-          onError={onError}
-          onHttpError={onError}
-          allowFileAccess
-          allowUniversalAccessFromFileURLs
-          scalesPageToFit
-        />
+        {createElement('iframe', {
+          src: uri,
+          title: 'PDF',
+          style: { width: '100%', height: '100%', border: 'none' },
+          onError,
+        })}
       </View>
     );
   }
