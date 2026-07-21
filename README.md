@@ -88,27 +88,17 @@ const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
 const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
 ```
 
-### 2. API IA (Groq)
+### 2. API IA (Google Gemini 2.5 Flash)
 
-1. Créez une clé sur [console.groq.com](https://console.groq.com).
-2. Dans `.env` à la racine d’`ExpenseApp` :
+1. Créez une clé sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+2. Enregistrez la clé **uniquement** côté Supabase (pas dans `.env` mobile) :
 
-```env
-EXPO_PUBLIC_GROQ_API_KEY=gsk_votre_cle
+```bash
+npx supabase secrets set GEMINI_API_KEY=AIza... --project-ref tqvxwthzpahwcscpwyrr
+npx supabase functions deploy extract-receipt --project-ref tqvxwthzpahwcscpwyrr
 ```
 
-3. **Redémarrez** le serveur Expo après toute modification du `.env`.
-
-**Pourquoi le scan peut « ne rien faire »**
-
-- **Expo Web** : le navigateur bloque en général l’appel direct à Groq (CORS). Le flux Web utilise une **Edge Function** Supabase `extract-receipt` qui appelle Groq côté serveur.
-  - Installez la [Supabase CLI](https://supabase.com/docs/guides/cli), reliez le projet, puis :
-    ```bash
-    supabase secrets set GROQ_API_KEY=gsk_votre_cle
-    supabase functions deploy extract-receipt
-    ```
-  - Connectez-vous dans l’app avant de lancer un scan (la fonction vérifie un utilisateur authentifié).
-- **Mobile** : sous Expo SDK 54, la lecture fichier pour l’image doit passer par `expo-file-system/legacy` (déjà corrigé dans `aiExtraction.ts`).
+3. Mobile et web appellent la Edge Function `extract-receipt` (utilisateur connecté requis).
 
 Fichier de la fonction : `supabase/functions/extract-receipt/index.ts`.
 

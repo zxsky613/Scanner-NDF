@@ -170,7 +170,7 @@
     "deleteAccountHelpTitle": "删除账号",
     "deleteAccountHelpBody": "登录后：打开底部「设置」标签，进入「账号与数据」，点击「删除我的账号」，并按两次确认；删除不可恢复。详情见隐私政策相关章节。",
     "aiEmptyAnalysisService": "分析服务返回为空。",
-    "aiGroqKeyMissing": "缺少 Groq 密钥：请在 .env 中添加 EXPO_PUBLIC_GROQ_API_KEY（见 .env.example）。",
+    "aiGroqKeyMissing": "分析服务不可用：请在 Supabase 配置 GEMINI_API_KEY（见 .env.example）。",
     "aiEmptyModelResponse": "模型返回为空。"
   },
   "auth": {
@@ -244,6 +244,8 @@
     "scanReceipt": "扫描收据",
     "uploadReceipt": "上传图片或 PDF",
     "takePhoto": "拍照",
+    "pickFromGallery": "相册选图",
+    "pickPdfOrFile": "导入 PDF 或文件",
     "analyzing": "分析中...",
     "analysisComplete": "分析完成",
     "analysisFailed": "分析失败，请手动填写。",
@@ -256,7 +258,8 @@
     "receiptMenuSubtitle": "凭证操作",
     "receiptMenuTitle": "凭证",
     "receiptMenuViewFull": "大图查看",
-    "receiptMenuGallery": "选择其他文件",
+    "receiptMenuGallery": "从相册选择",
+    "receiptMenuPdf": "选择 PDF / 文件",
     "receiptMenuCamera": "重新拍照",
     "receiptReplace": "更换票据",
     "filterNotes": "筛选",
@@ -331,9 +334,9 @@
     "projectDaily": "日常",
     "selectProject": "归属项目",
     "description": "备注",
-    "descriptionHint": "选择「其他」类别时必填：请说明费用用途。",
+    "descriptionHint": "选填：说明费用用途。",
     "descriptionPlaceholder": "例如：杂项支出、未分类采购…",
-    "descriptionRequired": "选择「其他」类别时请填写备注。",
+    "descriptionRequired": "请填写备注。",
     "status": "状态",
     "receipt": "收据",
     "unknownSupplier": "未知",
@@ -389,7 +392,9 @@
     "fiscalMessage": "含税总额超过{{threshold}}€，需要提供详细收据。",
     "continue": "继续",
     "cameraPermission": "需要相机权限",
-    "cameraPermissionMsg": "应用需要访问相机来扫描收据。"
+    "cameraPermissionMsg": "应用需要访问相机来扫描收据。",
+    "photoLibraryPermission": "需要相册权限",
+    "photoLibraryPermissionMsg": "应用需要访问相册以导入凭证。"
   },
   "admin": {
     "title": "管理面板",

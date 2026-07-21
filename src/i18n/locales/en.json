@@ -170,7 +170,7 @@
     "deleteAccountHelpTitle": "Account deletion",
     "deleteAccountHelpBody": "After signing in: open the Settings tab (bottom-right icon), go to Account & data, then tap Delete my account. Confirm twice — deletion is permanent. Legal details are in the privacy policy (account deletion section).",
     "aiEmptyAnalysisService": "Empty response from the analysis service.",
-    "aiGroqKeyMissing": "Missing Groq key: add EXPO_PUBLIC_GROQ_API_KEY to .env (see .env.example).",
+    "aiGroqKeyMissing": "Analysis service unavailable: configure GEMINI_API_KEY on Supabase (see .env.example).",
     "aiEmptyModelResponse": "Empty response from the model."
   },
   "auth": {
@@ -244,6 +244,8 @@
     "scanReceipt": "Scan Receipt",
     "uploadReceipt": "Upload image or PDF",
     "takePhoto": "Take Photo",
+    "pickFromGallery": "Photo gallery",
+    "pickPdfOrFile": "Import a PDF or file",
     "analyzing": "Analyzing...",
     "analysisComplete": "Analysis complete",
     "analysisFailed": "Analysis failed. Please fill in manually.",
@@ -256,7 +258,8 @@
     "receiptMenuSubtitle": "Receipt actions",
     "receiptMenuTitle": "Receipt",
     "receiptMenuViewFull": "View full size",
-    "receiptMenuGallery": "Choose another file",
+    "receiptMenuGallery": "Choose from gallery",
+    "receiptMenuPdf": "Choose a PDF / file",
     "receiptMenuCamera": "Take a new photo",
     "receiptReplace": "Replace receipt",
     "filterNotes": "Filter",
@@ -331,9 +334,9 @@
     "projectDaily": "Daily / general",
     "selectProject": "Link to a project",
     "description": "Description",
-    "descriptionHint": "Required for the “Other” category: describe what this expense is for.",
+    "descriptionHint": "Optional: describe what this expense is for.",
     "descriptionPlaceholder": "E.g. miscellaneous expense, uncategorized purchase…",
-    "descriptionRequired": "Please fill in the description for the “Other” category.",
+    "descriptionRequired": "Please fill in the description.",
     "status": "Status",
     "receipt": "Receipt",
     "unknownSupplier": "Unknown",
@@ -389,7 +392,9 @@
     "fiscalMessage": "The total amount exceeds {{threshold}}€. A detailed receipt is required.",
     "continue": "Continue",
     "cameraPermission": "Camera permission required",
-    "cameraPermissionMsg": "The app needs camera access to scan receipts."
+    "cameraPermissionMsg": "The app needs camera access to scan receipts.",
+    "photoLibraryPermission": "Photo library permission required",
+    "photoLibraryPermissionMsg": "The app needs access to your photos to import a receipt."
   },
   "admin": {
     "title": "Dashboard",

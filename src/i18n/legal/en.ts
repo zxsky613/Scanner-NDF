@@ -70,12 +70,12 @@ Data is accessible only to authorized persons:
 
 • {{hostName}} ({{hostWebsite}}) — authentication, database and storage of supporting documents, in a European Union region.
 • Vercel Inc. (https://vercel.com) — hosting of the public website (legal pages, management interface).
-• Groq, Inc. (https://groq.com) — extraction of receipt information by artificial intelligence (image analysis). Images transit via a server-side function operated by the Publisher; the provider does not retain your supporting documents beyond the analysis time, in accordance with its retention policy.
+• Google LLC / Google Gemini (https://ai.google.dev) — extraction of receipt information by artificial intelligence (image analysis). Images transit via a server-side function operated by the Publisher; the provider does not retain your supporting documents beyond the analysis time, in accordance with its retention policy.
 • Apple Inc. / Google LLC — distribution of the application via App Store / Google Play (no access to your expense content).
 
 8. Location and transfers outside the EU
 
-Business data (expenses, supporting documents, accounts) is stored on servers located within the European Union. Some providers (Groq, Apple, Google) may be located in the United States; transfers, if any, are framed by the European Commission's standard contractual clauses or an equivalent mechanism provided by the GDPR.
+Business data (expenses, supporting documents, accounts) is stored on servers located within the European Union. Some providers (Google Gemini, Apple, Google) may be located in the United States; transfers, if any, are framed by the European Commission's standard contractual clauses or an equivalent mechanism provided by the GDPR.
 
 9. Retention periods
 

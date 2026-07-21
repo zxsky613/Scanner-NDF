@@ -170,7 +170,7 @@
     "deleteAccountHelpTitle": "Suppression du compte",
     "deleteAccountHelpBody": "Après connexion : ouvrez l’onglet « Réglages » (icône en bas à droite), puis la section « Compte et données », et touchez « Supprimer mon compte ». Confirmez deux fois ; la suppression est définitive. Les détails juridiques figurent dans la politique de confidentialité (section compte et données).",
     "aiEmptyAnalysisService": "Réponse vide du service d’analyse.",
-    "aiGroqKeyMissing": "Clé Groq manquante : ajoutez EXPO_PUBLIC_GROQ_API_KEY dans .env (voir .env.example).",
+    "aiGroqKeyMissing": "Service d’analyse indisponible : configurez GEMINI_API_KEY sur Supabase (voir .env.example).",
     "aiEmptyModelResponse": "Réponse vide du modèle."
   },
   "auth": {
@@ -244,6 +244,8 @@
     "scanReceipt": "Scanner un Ticket",
     "uploadReceipt": "Importer image ou PDF",
     "takePhoto": "Prendre une Photo",
+    "pickFromGallery": "Galerie photos",
+    "pickPdfOrFile": "Importer un PDF ou un fichier",
     "analyzing": "Analyse en cours...",
     "analysisComplete": "Analyse terminée",
     "analysisFailed": "Échec de l'analyse. Veuillez remplir manuellement.",
@@ -256,7 +258,8 @@
     "receiptMenuSubtitle": "Actions sur le justificatif",
     "receiptMenuTitle": "Justificatif",
     "receiptMenuViewFull": "Voir en grand",
-    "receiptMenuGallery": "Choisir un autre fichier",
+    "receiptMenuGallery": "Choisir depuis la galerie",
+    "receiptMenuPdf": "Choisir un PDF / fichier",
     "receiptMenuCamera": "Prendre une nouvelle photo",
     "receiptReplace": "Changer le ticket",
     "filterNotes": "Filtrer",
@@ -331,9 +334,9 @@
     "projectDaily": "Quotidien",
     "selectProject": "Rattacher à un projet",
     "description": "Description",
-    "descriptionHint": "Obligatoire pour la catégorie « Autre » : précisez la nature de la dépense.",
+    "descriptionHint": "Optionnel : précisez la nature de la dépense.",
     "descriptionPlaceholder": "Ex. : frais divers, achat non classé…",
-    "descriptionRequired": "Merci de remplir la description pour la catégorie « Autre ».",
+    "descriptionRequired": "Merci de remplir la description.",
     "status": "Statut",
     "receipt": "Justificatif",
     "unknownSupplier": "Inconnu",
@@ -389,7 +392,9 @@
     "fiscalMessage": "Le montant TTC dépasse {{threshold}}€. Un justificatif détaillé est obligatoire.",
     "continue": "Continuer",
     "cameraPermission": "Permission caméra requise",
-    "cameraPermissionMsg": "L'application a besoin d'accéder à votre caméra pour scanner les tickets."
+    "cameraPermissionMsg": "L'application a besoin d'accéder à votre caméra pour scanner les tickets.",
+    "photoLibraryPermission": "Permission photos requise",
+    "photoLibraryPermissionMsg": "L'application a besoin d'accéder à vos photos pour importer un justificatif."
   },
   "admin": {
     "title": "Tableau de Bord",

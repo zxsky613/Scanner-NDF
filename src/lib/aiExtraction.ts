@@ -1,7 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
-import { AI_API_URL, AI_API_KEY, AI_MODEL } from '../config/constants';
 import { supabase } from '../config/supabase';
 import i18n from '../i18n';
 import { isPdfReceipt, RECEIPT_MAX_BYTES } from './receiptMime';
@@ -13,35 +12,8 @@ import {
   VatDetail,
 } from '../types';
 
-/** Groq limite ~4 Mo pour les requêtes base64 ; on reste largement en dessous. */
+/** Limite pratique pour base64 envoyé à l’Edge Function (~4 Mo). */
 const MAX_B64_CHARS = 3_000_000;
-
-const CATEGORY_PROMPT_LINES = `
-Also classify the expense into exactly one "category" string (must be one of these lowercase keys):
-- food: meals, restaurants, cafés, groceries for meals
-- materials: supplies, hardware, raw materials, consumables
-- travel: fuel, taxis, trains, flights, parking, mileage, public transport for business trips
-- lodging: accommodation, hotels, hostels, 住宿 (nights, room charges)
-- equipment_rental: renting tools or equipment, location de matériel, 设备租赁
-- local_procurement: local purchases on behalf of equipment suppliers, 替设备商本地代采, achats locaux pour équipementier
-- other: anything that does not clearly fit above
-`.trim();
-
-const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt image and return ONLY valid JSON:
-{
-  "date": "YYYY-MM-DD",
-  "supplier": "string",
-  "city": "string",
-  "amount_ht": number (amount excluding tax),
-  "amount_ttc": number (total amount including tax),
-  "vat_details": [{"rate": number, "base": number, "amount": number}],
-  "category": "food" | "materials" | "travel" | "lodging" | "equipment_rental" | "local_procurement" | "other",
-  "confidence": number (0-1)
-}
-${CATEGORY_PROMPT_LINES}
-Use merchant name, store header, or restaurant name as supplier if visible; otherwise "Inconnu".
-For "city": the city name where the purchase took place — infer from the address block, store footer, or postal line on the ticket (e.g. "Paris", "Lyon"). If no city is visible or inferable, use an empty string "".
-Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
 
 function parseCategoryFromAi(raw: unknown): ExpenseCategory | undefined {
   if (typeof raw !== 'string') return undefined;
@@ -110,10 +82,8 @@ async function jpegBase64FromUri(uri: string, width: number, compress: number): 
   return readAsStringAsync(result.uri, { encoding: 'base64' });
 }
 
-/**
- * Groq refuse les images trop lourdes en base64. Redimensionnement + JPEG avant envoi.
- */
-async function prepareImageForGroq(
+/** Redimensionnement + JPEG avant envoi (limite taille Edge Function / Gemini). */
+async function prepareImageForAi(
   uri: string,
   inlineBase64?: string | null
 ): Promise<{ base64: string; mime: string }> {
@@ -195,8 +165,8 @@ function parseAiJsonContent(content: string): AIExtractionResult {
 type EdgeExtractResponse = { content?: string; error?: string };
 
 /**
- * Sur le web, l’API Groq est en général bloquée par CORS : appel à la Edge Function `extract-receipt`.
- * Déployer : `supabase secrets set GROQ_API_KEY=gsk_...` puis `supabase functions deploy extract-receipt`
+ * Extraction via Edge Function Supabase `extract-receipt` (Gemini 2.5 Flash).
+ * Clé : `supabase secrets set GEMINI_API_KEY=...` puis `supabase functions deploy extract-receipt`
  */
 async function extractViaEdgeFunction(
   base64: string,
@@ -225,11 +195,6 @@ export const extractReceiptData = async (
   inlineBase64?: string | null,
   options?: { mimeType?: string | null; fileName?: string | null }
 ): Promise<AIExtractionResult> => {
-  /* Sur iOS/Android la clé est utilisée en direct ; sur le web, Groq passe par Supabase (secret GROQ_API_KEY). */
-  if (Platform.OS !== 'web' && !AI_API_KEY?.trim()) {
-    throw new Error(i18n.t('errors.aiGroqKeyMissing'));
-  }
-
   const isPdf = isPdfReceipt(imageUri, options?.mimeType, options?.fileName);
 
   if (isPdf) {
@@ -237,7 +202,7 @@ export const extractReceiptData = async (
     if (Platform.OS === 'web') {
       try {
         const { base64, uri: jpegUri } = await pdfUriToJpegDataUri(imageUri);
-        const { base64: prepared, mime } = await prepareImageForGroq(jpegUri, base64);
+        const { base64: prepared, mime } = await prepareImageForAi(jpegUri, base64);
         content = await extractViaEdgeFunction(prepared, mime);
       } catch {
         const pdfFile = await getFileBase64(imageUri, inlineBase64);
@@ -256,50 +221,7 @@ export const extractReceiptData = async (
     return parseAiJsonContent(content);
   }
 
-  const { base64, mime } = await prepareImageForGroq(imageUri, inlineBase64);
-
-  let content: string;
-
-  if (Platform.OS === 'web') {
-    content = await extractViaEdgeFunction(base64, mime);
-  } else {
-    const response = await fetch(AI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${AI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Extract the data from this receipt:' },
-              {
-                type: 'image_url',
-                image_url: { url: `data:${mime};base64,${base64}` },
-              },
-            ],
-          },
-        ],
-        max_tokens: 850,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      const msg = result?.error?.message ?? response.statusText ?? JSON.stringify(result);
-      throw new Error(msg);
-    }
-
-    content = result.choices?.[0]?.message?.content ?? '';
-    if (!content) {
-      throw new Error(i18n.t('errors.aiEmptyModelResponse'));
-    }
-  }
-
+  const { base64, mime } = await prepareImageForAi(imageUri, inlineBase64);
+  const content = await extractViaEdgeFunction(base64, mime);
   return parseAiJsonContent(content);
 };

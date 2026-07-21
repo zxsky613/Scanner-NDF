@@ -70,12 +70,12 @@ const privacyBody = `本隐私政策说明「{{tradeName}}」服务（下称「�
 
 • {{hostName}}（{{hostWebsite}}）——身份认证、数据库及凭证存储，位于欧盟区域。
 • Vercel Inc.（https://vercel.com）——公开网站托管（法律页面、管理界面）。
-• Groq, Inc.（https://groq.com）——通过人工智能（图像分析）提取小票信息。图像通过发布者的服务器端函数中转；服务商不会在分析时间之外保留您的凭证，详见其保留政策。
+• Google LLC / Google Gemini（https://ai.google.dev）——通过人工智能（图像分析）提取小票信息。图像通过发布者的服务器端函数中转；服务商不会在分析时间之外保留您的凭证，详见其保留政策。
 • Apple Inc. / Google LLC——通过 App Store / Google Play 分发应用（不访问您的报销内容）。
 
 8. 数据存储位置与跨境传输
 
-业务数据（报销、凭证、账户）存储在欧盟境内的服务器。部分服务商（Groq、Apple、Google）可能位于美国；如发生跨境传输，将通过欧盟委员会的标准合同条款或 GDPR 规定的等效机制加以约束。
+业务数据（报销、凭证、账户）存储在欧盟境内的服务器。部分服务商（Google Gemini、Apple、Google）可能位于美国；如发生跨境传输，将通过欧盟委员会的标准合同条款或 GDPR 规定的等效机制加以约束。
 
 9. 保存期限
 

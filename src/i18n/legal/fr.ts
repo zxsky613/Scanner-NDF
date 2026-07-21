@@ -70,12 +70,12 @@ Les données ne sont accessibles qu’aux personnes autorisées :
 
 • {{hostName}} ({{hostWebsite}}) — authentification, base de données et stockage des justificatifs, en région de l’Union européenne.
 • Vercel Inc. (https://vercel.com) — hébergement du site web public (pages légales, interface gestion).
-• Groq, Inc. (https://groq.com) — extraction des informations de tickets par intelligence artificielle (analyse d’image). L’image transite via une fonction côté serveur de l’Éditeur ; le prestataire ne conserve pas vos justificatifs au-delà du temps de l’analyse, conformément à sa politique de rétention.
+• Google LLC / Google Gemini (https://ai.google.dev) — extraction des informations de tickets par intelligence artificielle (analyse d’image). L’image transite via une fonction côté serveur de l’Éditeur ; le prestataire ne conserve pas vos justificatifs au-delà du temps de l’analyse, conformément à sa politique de rétention.
 • Apple Inc. / Google LLC — distribution de l’application via App Store / Google Play (pas d’accès au contenu de vos notes).
 
 8. Localisation et transferts hors UE
 
-Les données métier (notes de frais, justificatifs, comptes) sont stockées sur des serveurs situés dans l’Union européenne. Certains prestataires (Groq, Apple, Google) peuvent être situés aux États-Unis ; les transferts éventuels sont encadrés par les clauses contractuelles types de la Commission européenne ou un mécanisme équivalent prévu par le RGPD.
+Les données métier (notes de frais, justificatifs, comptes) sont stockées sur des serveurs situés dans l’Union européenne. Certains prestataires (Google Gemini, Apple, Google) peuvent être situés aux États-Unis ; les transferts éventuels sont encadrés par les clauses contractuelles types de la Commission européenne ou un mécanisme équivalent prévu par le RGPD.
 
 9. Durées de conservation
 

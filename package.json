@@ -12,8 +12,9 @@
     "android": "cross-env EXPO_OFFLINE=1 expo start --android --offline",
     "ios": "cross-env EXPO_OFFLINE=1 expo start --ios --offline",
     "web": "expo start --web --port 8082",
-    "build:web": "expo export --platform web && tsx scripts/build-legal-pages.ts",
+    "build:web": "expo export --platform web && tsx scripts/fix-web-index.ts && tsx scripts/build-legal-pages.ts",
     "build:legal": "tsx scripts/build-legal-pages.ts",
+    "fix:web-index": "tsx scripts/fix-web-index.ts",
     "eas:login": "eas login",
     "eas:build:ios": "eas build --platform ios --profile production",
     "eas:submit:ios": "eas submit --platform ios --latest --profile production"

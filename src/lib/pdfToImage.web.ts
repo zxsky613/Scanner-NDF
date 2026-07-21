@@ -5,6 +5,10 @@ export type PdfJpegResult = {
   base64: string;
 };
 
+/** Version alignée sur `pdfjs-dist` dans package.json — worker via CDN (évite `import.meta` qui casse le bundle Expo web). */
+const PDFJS_WORKER_SRC =
+  'https://unpkg.com/pdfjs-dist@6.0.227/legacy/build/pdf.worker.min.mjs';
+
 async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
   if (uri.startsWith('data:')) {
     const comma = uri.indexOf(',');
@@ -33,10 +37,7 @@ async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
 /** Convertit la 1re page d’un PDF en JPEG (web uniquement). */
 export async function pdfUriToJpegDataUri(uri: string): Promise<PdfJpegResult> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-    import.meta.url
-  ).toString();
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
 
   const data = await uriToArrayBuffer(uri);
   const doc = await pdfjs.getDocument({ data }).promise;

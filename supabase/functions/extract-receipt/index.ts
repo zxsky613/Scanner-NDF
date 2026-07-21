@@ -8,9 +8,9 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const TEXT_MODEL = "llama-3.3-70b-versatile";
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt and return ONLY valid JSON:
 {
@@ -31,11 +31,23 @@ Use merchant name, store header, or restaurant name as supplier if visible; othe
 For "city": city name where purchase occurred from address/footer on ticket; if unknown use "".
 Sum line items for a total if no grand total visible. If you cannot read a field, use reasonable defaults. Date format must be YYYY-MM-DD.`;
 
+type GeminiPart =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
 async function pdfBase64ToText(pdfBase64: string): Promise<string> {
   const binary = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
   const pdf = await getDocumentProxy(binary);
   const { text } = await extractText(pdf, { mergePages: true });
   return text.trim();
+}
+
+function extractGeminiText(json: {
+  candidates?: { content?: { parts?: { text?: string }[] } }[];
+  error?: { message?: string };
+}): string {
+  const parts = json?.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("").trim();
 }
 
 Deno.serve(async (req) => {
@@ -72,12 +84,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
-    if (!groqKey) {
+    const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
+    if (!geminiKey) {
       return new Response(
         JSON.stringify({
           error:
-            "GROQ_API_KEY not set on project (supabase secrets set GROQ_API_KEY=...)",
+            "GEMINI_API_KEY not set on project (supabase secrets set GEMINI_API_KEY=...)",
         }),
         {
           status: 500,
@@ -90,7 +102,7 @@ Deno.serve(async (req) => {
       typeof mime === "string" &&
       (mime === "application/pdf" || mime === "application/x-pdf");
 
-    let groqBody: Record<string, unknown>;
+    const parts: GeminiPart[] = [{ text: SYSTEM_PROMPT }];
 
     if (isPdf) {
       let pdfText: string;
@@ -120,67 +132,64 @@ Deno.serve(async (req) => {
         );
       }
 
-      groqBody = {
-        model: TEXT_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Extract the data from this receipt text:\n\n${pdfText}`,
-          },
-        ],
-        max_tokens: 850,
-      };
+      parts.push({
+        text: `Extract the data from this receipt text:\n\n${pdfText}`,
+      });
     } else {
       const safeMime =
         typeof mime === "string" && /^image\/[\w.+-]+$/.test(mime)
           ? mime
           : "image/jpeg";
 
-      groqBody = {
-        model: VISION_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Extract the data from this receipt:" },
-              {
-                type: "image_url",
-                image_url: { url: `data:${safeMime};base64,${base64}` },
-              },
-            ],
-          },
-        ],
-        max_tokens: 850,
-      };
+      parts.push({ text: "Extract the data from this receipt:" });
+      parts.push({
+        inline_data: {
+          mime_type: safeMime,
+          data: base64,
+        },
+      });
     }
 
-    const groqRes = await fetch(GROQ_URL, {
+    const geminiRes = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(geminiKey)}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify(groqBody),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+        },
+      }),
     });
 
-    const groqJson = (await groqRes.json()) as {
-      choices?: { message?: { content?: string } }[];
+    const geminiJson = (await geminiRes.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
       error?: { message?: string };
     };
-    if (!groqRes.ok) {
+
+    if (!geminiRes.ok) {
       const msg =
-        groqJson?.error?.message ??
-        groqRes.statusText ??
-        JSON.stringify(groqJson);
+        geminiJson?.error?.message ??
+        geminiRes.statusText ??
+        JSON.stringify(geminiJson);
       return new Response(JSON.stringify({ error: msg }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const content = groqJson?.choices?.[0]?.message?.content ?? "";
+    const content = extractGeminiText(geminiJson);
+    if (!content) {
+      return new Response(
+        JSON.stringify({ error: "Empty response from Gemini" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

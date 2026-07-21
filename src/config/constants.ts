@@ -13,10 +13,10 @@ export function mobileTabBarScrollPadding(): number {
 export const FISCAL_ALERT_THRESHOLD = 500;
 export const STORAGE_BUCKET = 'receipts';
 
-export const AI_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-/** Définir dans `.env` : EXPO_PUBLIC_GROQ_API_KEY=gsk_... (jamais dans le code versionné). */
-/** Clé Groq sans espaces / guillemets parasites (copier-coller Windows). */
-export const AI_API_KEY = (process.env.EXPO_PUBLIC_GROQ_API_KEY ?? '')
-  .trim()
-  .replace(/^["']|["']$/g, '');
-export const AI_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+/**
+ * Extraction IA (Gemini 2.5 Flash) via Edge Function Supabase `extract-receipt`.
+ * Clé côté serveur uniquement :
+ *   npx supabase secrets set GEMINI_API_KEY=... --project-ref tqvxwthzpahwcscpwyrr
+ */
+export const AI_PROVIDER = 'gemini';
+export const AI_MODEL = 'gemini-2.5-flash';

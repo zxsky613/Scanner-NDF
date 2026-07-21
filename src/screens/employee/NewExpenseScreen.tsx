@@ -19,6 +19,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -263,10 +264,48 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     }
   };
 
-  const handlePickReceipt = async () => {
+  /** Galerie Photos (iOS/Android) — ImagePicker, car DocumentPicker n’affiche souvent que les PDF. */
+  const handlePickFromGallery = async () => {
+    setReceiptMenuVisible(false);
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAppAlert(t('alerts.photoLibraryPermission'), t('alerts.photoLibraryPermissionMsg'), 'error');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? 'image/jpeg';
+    const name = asset.fileName ?? null;
+    if (typeof asset.fileSize === 'number' && asset.fileSize > RECEIPT_MAX_BYTES) {
+      showAppAlert(t('common.error'), t('errors.receiptFileTooLarge'), 'error');
+      return;
+    }
+
+    setReceiptMimeType(mime);
+    setReceiptFileName(name);
+    setImageUri(asset.uri);
+    analyzeReceipt(asset.uri, asset.base64 ?? null, mime, name);
+  };
+
+  /** Fichiers (PDF et images depuis Fichiers / Documents). */
+  const handlePickDocument = async () => {
     setReceiptMenuVisible(false);
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['image/*', 'application/pdf'],
+      type: [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/heic',
+        'image/heif',
+        'image/webp',
+        'image/*',
+      ],
       copyToCacheDirectory: true,
       multiple: false,
     });
@@ -384,11 +423,6 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
     const receiptDateIso = dmyInputToIso(receiptDateInput);
     if (!receiptDateIso) {
       showAppAlert(t('common.error'), t('expense.dateInvalid'), 'error');
-      return;
-    }
-
-    if (category === 'other' && !description.trim()) {
-      showAppAlert(t('common.error'), t('expense.descriptionRequired'), 'error');
       return;
     }
 
@@ -595,23 +629,34 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
           {/* Boutons de capture / import — masqu\u00e9s sur web : la version PC sert \u00e0 g\u00e9rer les donn\u00e9es,
               la saisie de tickets se fait depuis le mobile. */}
           {!IS_WEB && (
-            <View className="flex-row gap-3 mb-4">
+            <View className="mb-4 gap-3">
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
+                  onPress={handleTakePhoto}
+                >
+                  <Text className="text-2xl mb-1">📸</Text>
+                  <Text className="text-gray-700 font-medium text-sm text-center px-1">
+                    {t('employee.takePhoto')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
+                  onPress={() => void handlePickFromGallery()}
+                >
+                  <Text className="text-2xl mb-1">🖼️</Text>
+                  <Text className="text-gray-700 font-medium text-sm text-center px-1">
+                    {t('employee.pickFromGallery')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
-                onPress={handleTakePhoto}
+                className="bg-white border border-gray-100 rounded-[22px] py-4 items-center shadow-sm flex-row justify-center gap-2"
+                onPress={() => void handlePickDocument()}
               >
-                <Text className="text-2xl mb-1">📸</Text>
+                <Text className="text-xl">📄</Text>
                 <Text className="text-gray-700 font-medium text-sm">
-                  {t('employee.takePhoto')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="flex-1 bg-white border border-gray-100 rounded-[22px] py-5 items-center shadow-sm"
-                onPress={handlePickReceipt}
-              >
-                <Text className="text-2xl mb-1">📁</Text>
-                <Text className="text-gray-700 font-medium text-sm">
-                  {t('employee.uploadReceipt')}
+                  {t('employee.pickPdfOrFile')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1143,13 +1188,25 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-row items-center px-4 py-4 border-b border-gray-100/90 active:bg-white"
-                onPress={() => void handlePickReceipt()}
+                onPress={() => void handlePickFromGallery()}
               >
                 <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
                   <Ionicons name="images-outline" size={22} color={theme.brandPrimary} />
                 </View>
                 <Text className="ml-3 flex-1 text-[15px] font-medium text-gray-800 leading-5">
                   {t('employee.receiptMenuGallery')}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-row items-center px-4 py-4 border-b border-gray-100/90 active:bg-white"
+                onPress={() => void handlePickDocument()}
+              >
+                <View className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-100">
+                  <Ionicons name="document-outline" size={22} color={theme.brandPrimary} />
+                </View>
+                <Text className="ml-3 flex-1 text-[15px] font-medium text-gray-800 leading-5">
+                  {t('employee.receiptMenuPdf')}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
               </TouchableOpacity>
