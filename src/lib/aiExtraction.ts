@@ -85,23 +85,40 @@ async function jpegBase64FromUri(uri: string, width: number, compress: number): 
 /** Redimensionnement + JPEG avant envoi (limite taille Edge Function / Gemini). */
 async function prepareImageForAi(
   uri: string,
-  inlineBase64?: string | null
+  _inlineBase64?: string | null
 ): Promise<{ base64: string; mime: string }> {
+  // Ne jamais envoyer le base64 brut de la caméra (souvent trop lourd → non-2xx).
+  const attempts: Array<{ width: number; compress: number }> = [
+    { width: 1024, compress: 0.55 },
+    { width: 800, compress: 0.45 },
+    { width: 640, compress: 0.35 },
+  ];
+
+  let lastErr: unknown;
+  for (const a of attempts) {
+    try {
+      const b64 = await jpegBase64FromUri(uri, a.width, a.compress);
+      if (b64.length > 0 && b64.length <= MAX_B64_CHARS) {
+        return { base64: b64, mime: 'image/jpeg' };
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  // Dernier recours : fichier URI seul (pas le base64 caméra inline)
   try {
-    let b64 = await jpegBase64FromUri(uri, 1280, 0.68);
-    if (b64.length > MAX_B64_CHARS) {
-      b64 = await jpegBase64FromUri(uri, 800, 0.55);
-    }
-    if (b64.length > MAX_B64_CHARS) {
-      b64 = await jpegBase64FromUri(uri, 640, 0.45);
-    }
-    return { base64: b64, mime: 'image/jpeg' };
-  } catch {
-    const fallback = await getFileBase64(uri, inlineBase64);
+    const fallback = await getFileBase64(uri, null);
     if (fallback.base64.length > MAX_B64_CHARS) {
       throw new Error(i18n.t('errors.aiImageTooHeavy'));
     }
     return { base64: fallback.base64, mime: 'image/jpeg' };
+  } catch (e) {
+    throw e instanceof Error
+      ? e
+      : new Error(
+          lastErr instanceof Error ? lastErr.message : i18n.t('errors.aiImageTooHeavy')
+        );
   }
 }
 
@@ -165,9 +182,27 @@ function parseAiJsonContent(content: string): AIExtractionResult {
 type EdgeExtractResponse = { content?: string; error?: string };
 
 /**
- * Extraction via Edge Function Supabase `extract-receipt` (Gemini 2.5 Flash).
+ * Extraction via Edge Function Supabase `extract-receipt` (Gemini Flash).
  * Clé : `supabase secrets set GEMINI_API_KEY=...` puis `supabase functions deploy extract-receipt`
  */
+async function readFunctionsErrorBody(error: unknown): Promise<string | null> {
+  const ctx = (error as { context?: Response })?.context;
+  if (!ctx) return null;
+  try {
+    const clone = typeof ctx.clone === 'function' ? ctx.clone() : ctx;
+    const body = (await clone.json()) as { error?: string; message?: string };
+    return body?.error || body?.message || null;
+  } catch {
+    try {
+      const clone = typeof ctx.clone === 'function' ? ctx.clone() : ctx;
+      const text = await clone.text();
+      return text?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 async function extractViaEdgeFunction(
   base64: string,
   mime: string
@@ -178,7 +213,8 @@ async function extractViaEdgeFunction(
   );
 
   if (error) {
-    throw new Error(error.message || i18n.t('errors.aiEdgeUnavailable'));
+    const detail = await readFunctionsErrorBody(error);
+    throw new Error(detail || error.message || i18n.t('errors.aiEdgeUnavailable'));
   }
   if (data?.error) {
     throw new Error(data.error);

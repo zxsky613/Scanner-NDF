@@ -8,9 +8,11 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+/** gemini-2.5-flash = 404 pour nouveaux comptes ; *-latest reste dispo. */
+const GEMINI_MODELS = [
+  "gemini-flash-lite-latest",
+  "gemini-flash-latest",
+] as const;
 
 const SYSTEM_PROMPT = `You are a receipt data extraction assistant. Extract the following from the receipt and return ONLY valid JSON:
 {
@@ -50,6 +52,70 @@ function extractGeminiText(json: {
   return parts.map((p) => p.text ?? "").join("").trim();
 }
 
+function stripDataUrl(b64: string): string {
+  const m = b64.match(/^data:[^;]+;base64,(.+)$/i);
+  return m ? m[1] : b64;
+}
+
+function normalizeMime(mime: string | undefined, isPdf: boolean): string {
+  if (isPdf) return "application/pdf";
+  if (!mime) return "image/jpeg";
+  const m = mime.toLowerCase().trim();
+  // HEIC souvent rejeté par Gemini → on tente jpeg (après conversion côté app)
+  if (m.includes("heic") || m.includes("heif")) return "image/jpeg";
+  if (/^image\/[\w.+-]+$/.test(m)) return m;
+  return "image/jpeg";
+}
+
+function jsonError(message: string, status = 400): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function callGemini(
+  apiKey: string,
+  model: string,
+  parts: GeminiPart[]
+): Promise<{ ok: boolean; status: number; json: Record<string, unknown>; text: string }> {
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const geminiBody = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 4096,
+      responseMimeType: "application/json",
+    },
+  });
+
+  let res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: geminiBody,
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    res = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: geminiBody,
+    });
+  }
+
+  const json = (await res.json()) as Record<string, unknown>;
+  const text = extractGeminiText(
+    json as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    }
+  );
+  return { ok: res.ok, status: res.status, json, text };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -68,33 +134,32 @@ Deno.serve(async (req) => {
       error: userErr,
     } = await supabase.auth.getUser();
     if (userErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("Unauthorized", 401);
     }
 
-    const body = (await req.json()) as { base64?: string; mime?: string };
-    const base64 = body?.base64;
+    const body = (await req.json()) as {
+      base64?: string;
+      imageBase64?: string;
+      mime?: string;
+    };
+    let base64 = body?.base64 ?? body?.imageBase64;
     const mime = body?.mime;
     if (!base64 || typeof base64 !== "string") {
-      return new Response(JSON.stringify({ error: "Missing base64 image" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("Missing base64 image");
+    }
+
+    base64 = stripDataUrl(base64).replace(/\s/g, "");
+
+    // ~7.5 Mo binaire — les photos iPhone compressées passent ; au-delà Gemini / gateway saturent
+    if (base64.length > 10_000_000) {
+      return jsonError("Image too large for analysis. Use a smaller photo.");
     }
 
     const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
     if (!geminiKey) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "GEMINI_API_KEY not set on project (supabase secrets set GEMINI_API_KEY=...)",
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return jsonError(
+        "GEMINI_API_KEY not set on project (supabase secrets set GEMINI_API_KEY=...)",
+        500
       );
     }
 
@@ -105,42 +170,35 @@ Deno.serve(async (req) => {
     const parts: GeminiPart[] = [{ text: SYSTEM_PROMPT }];
 
     if (isPdf) {
-      let pdfText: string;
+      let pdfText = "";
       try {
         pdfText = await pdfBase64ToText(base64);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return new Response(
-          JSON.stringify({ error: `PDF read failed: ${msg}` }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        console.error("PDF text extract failed:", msg);
       }
 
-      if (pdfText.length < 12) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "PDF without readable text (scanned image). Use a photo or a digital PDF receipt.",
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+      if (pdfText.length >= 12) {
+        parts.push({
+          text: `Extract the data from this receipt text:\n\n${pdfText}`,
+        });
+      } else {
+        parts.push({
+          text:
+            "The PDF may be scanned. Extract the receipt data with OCR and return ONLY valid JSON.",
+        });
+        parts.push({
+          inline_data: { mime_type: "application/pdf", data: base64 },
+        });
       }
-
-      parts.push({
-        text: `Extract the data from this receipt text:\n\n${pdfText}`,
-      });
     } else {
-      const safeMime =
-        typeof mime === "string" && /^image\/[\w.+-]+$/.test(mime)
-          ? mime
-          : "image/jpeg";
-
+      const safeMime = normalizeMime(
+        typeof mime === "string" ? mime : undefined,
+        false
+      );
+      console.log(
+        `extract-receipt user=${user.id} mime=${safeMime} b64Len=${base64.length}`
+      );
       parts.push({ text: "Extract the data from this receipt:" });
       parts.push({
         inline_data: {
@@ -150,56 +208,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    const geminiRes = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(geminiKey)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
-
-    const geminiJson = (await geminiRes.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-      error?: { message?: string };
-    };
-
-    if (!geminiRes.ok) {
-      const msg =
-        geminiJson?.error?.message ??
-        geminiRes.statusText ??
-        JSON.stringify(geminiJson);
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const content = extractGeminiText(geminiJson);
-    if (!content) {
-      return new Response(
-        JSON.stringify({ error: "Empty response from Gemini" }),
-        {
-          status: 400,
+    let lastErr = "Gemini failed";
+    for (const model of GEMINI_MODELS) {
+      const result = await callGemini(geminiKey, model, parts);
+      if (result.ok && result.text) {
+        return new Response(JSON.stringify({ content: result.text }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+        });
+      }
+
+      const errObj = result.json?.error as { message?: string } | undefined;
+      lastErr =
+        errObj?.message ??
+        (result.text ? "Empty structured output" : `HTTP ${result.status}`);
+      console.error(`Gemini ${model}:`, result.status, lastErr);
+
+      // 404 modèle → essayer le suivant ; autres erreurs → suivant aussi (lite puis flash)
+      if (result.status === 401 || result.status === 403) {
+        return jsonError(`Gemini (${result.status}): ${lastErr}`, 502);
+      }
     }
 
-    return new Response(JSON.stringify({ content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonError(`Gemini: ${lastErr}`, 502);
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("extract-receipt crash:", msg);
+    return jsonError(msg, 500);
   }
 });

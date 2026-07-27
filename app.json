@@ -3,7 +3,7 @@
     "name": "DABAR's",
     "slug": "dabars",
     "scheme": "dabars",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.dabartechnique",
-      "buildNumber": "21",
+      "buildNumber": "23",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "L'application a besoin d'accéder à votre caméra pour scanner les tickets de caisse.",

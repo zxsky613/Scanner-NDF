@@ -251,15 +251,18 @@ export const NewExpenseScreen: React.FC<Props> = ({ navigation, profile }) => {
   const capturePhoto = async () => {
     if (cameraRef.current) {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.65,
-        base64: true,
+        quality: 0.5,
+        base64: false,
+        imageType: 'jpg',
+        exif: false,
       });
       if (photo) {
         setReceiptMimeType('image/jpeg');
         setReceiptFileName(null);
         setImageUri(photo.uri);
         setShowCamera(false);
-        analyzeReceipt(photo.uri, photo.base64 ?? null, 'image/jpeg');
+        // URI seule : compression JPEG côté aiExtraction (évite base64 caméra trop lourd)
+        analyzeReceipt(photo.uri, null, 'image/jpeg');
       }
     }
   };
