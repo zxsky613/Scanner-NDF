@@ -37,7 +37,7 @@ import { AppNameText } from '../../components/AppNameText';
 import { ScreenHeroTitle } from '../../components/ScreenHeroTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18n from '../../i18n';
-import { showAppAlert } from '../../utils/alert';
+import { showAppAlert, showAppConfirm } from '../../utils/alert';
 import { useNotificationsContext } from '../../context/NotificationsContext';
 import { syncCalendarLocale } from '../../utils/calendarLocales';
 import {
@@ -81,7 +81,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const cardX = IS_WEB ? WEB_CARD_GUTTER_CLASS : 'mx-5';
   const { expenses, refreshing, fetchExpenses, fetchExpensesSnapshot, updateExpenseStatus } =
     useExpenses(profile.id, true);
-  const { projects: crmProjects, fetchProjects: fetchCrmProjects } = useProjects();
+  const { projects: crmProjects, fetchProjects: fetchCrmProjects, loading: crmProjectsLoading } = useProjects();
   const { syncInBackground: syncNotificationsAndPendingBadge } = useNotificationsContext();
 
   const [employees, setEmployees] = useState<Profile[]>([]);
@@ -102,15 +102,26 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   const [rejectionReason, setRejectionReason] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportSheetView, setExportSheetView] = useState<'main' | 'dateRange'>('main');
+  const [exportSheetView, setExportSheetView] = useState<
+    'projects' | 'main' | 'dateRange' | 'preview'
+  >('projects');
   const [exportEmployeeId, setExportEmployeeId] = useState<string | undefined>();
   const [exportDateFrom, setExportDateFrom] = useState('');
   const [exportDateTo, setExportDateTo] = useState('');
+  // Export wizard : Step 1 — multi-projets
+  const [exportProjectSearch, setExportProjectSearch] = useState('');
+  const [exportAllProjects, setExportAllProjects] = useState(true);
+  const [exportProjectIds, setExportProjectIds] = useState<string[]>([]);
+  const [exportIncludeDaily, setExportIncludeDaily] = useState(true);
+  // Aperçu Excel avant génération
+  const [exportPreviewRows, setExportPreviewRows] = useState<Expense[]>([]);
+  const [exportPreviewing, setExportPreviewing] = useState(false);
   const [exportPick, setExportPick] = useState<{ start: string | null; end: string | null }>({
     start: null,
     end: null,
   });
   const [exportEmployeePickerOpen, setExportEmployeePickerOpen] = useState(false);
+  const [exportProjectPickerOpen, setExportProjectPickerOpen] = useState(false);
   /** Sections repliables : les plus récentes en premier (created_at). */
   const [pendingSectionExpanded, setPendingSectionExpanded] = useState(true);
   const [processedSectionExpanded, setProcessedSectionExpanded] = useState(false);
@@ -228,6 +239,12 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
 
   const buildExportFilters = useCallback((): ExpenseFilters => {
     const ef: ExpenseFilters = { ...filters };
+    // La sélection multi-projets se fait dans runExportFromModal.
+    delete ef.project_filter;
+
+    // L’export “par année” doit être basé sur created_at (pas receipt_date).
+    ef.date_basis = 'created_at';
+
     if (exportDateFrom) ef.date_from = exportDateFrom;
     else delete ef.date_from;
     if (exportDateTo) ef.date_to = exportDateTo;
@@ -239,23 +256,48 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
 
   const openExportModal = useCallback(() => {
     setExportEmployeeId(filters.employee_id);
-    setExportDateFrom(filters.date_from ?? '');
-    setExportDateTo(filters.date_to ?? '');
-    setExportPick({
-      start: filters.date_from ?? null,
-      end:
-        filters.date_to && filters.date_to !== filters.date_from ? filters.date_to : null,
-    });
+    // On repart sur un export “année” côté created_at : pas sur la période de receipt_date
+    // utilisée pour le tableau principal.
+    setExportDateFrom('');
+    setExportDateTo('');
+    setExportPick({ start: null, end: null });
+    // Step 1: choix multi-projets
+    const pf = filters.project_filter;
+    if (pf && pf !== 'all') {
+      setExportAllProjects(false);
+      setExportProjectIds(pf === 'daily' ? [] : [pf]);
+      setExportIncludeDaily(true);
+    } else {
+      setExportAllProjects(true);
+      setExportProjectIds([]);
+      setExportIncludeDaily(true);
+    }
+    setExportProjectSearch('');
     setExportSheetView('main');
+    setExportPreviewRows([]);
+    setExportPreviewing(false);
     setExportEmployeePickerOpen(false);
+    setExportProjectPickerOpen(false);
+    void fetchCrmProjects();
     setShowExportModal(true);
     void loadEmployeesWithExpenses();
-  }, [filters, loadEmployeesWithExpenses]);
+  }, [filters, loadEmployeesWithExpenses, fetchCrmProjects]);
 
   const closeExportModal = useCallback(() => {
     setShowExportModal(false);
     setExportSheetView('main');
     setExportEmployeePickerOpen(false);
+    setExportProjectPickerOpen(false);
+    setExportProjectSearch('');
+    setExportAllProjects(true);
+    setExportProjectIds([]);
+    setExportIncludeDaily(true);
+    setExportEmployeeId(undefined);
+    setExportDateFrom('');
+    setExportDateTo('');
+    setExportPick({ start: null, end: null });
+    setExportPreviewRows([]);
+    setExportPreviewing(false);
   }, []);
 
   const openExportDateRangeInSheet = useCallback(() => {
@@ -300,15 +342,64 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
   }, [exportPick]);
 
   const runExportFromModal = useCallback(async () => {
-    const ef = buildExportFilters();
+    const baseEf = buildExportFilters();
     setExporting(true);
     try {
-      const rows = await fetchExpensesSnapshot(ef);
-      if (rows.length === 0) {
+      const projectFilters: ExpenseProjectFilter[] = [];
+      if (exportAllProjects) {
+        projectFilters.push('all');
+      } else {
+        projectFilters.push(...exportProjectIds);
+        if (exportIncludeDaily) projectFilters.push('daily');
+      }
+
+      if (projectFilters.length === 0) {
         showAppAlert(t('common.error'), t('common.noData'), 'error');
         return;
       }
-      await exportToExcel(rows);
+
+      // Fusion multi-projets (évite les doublons si un overlap existe).
+      const merged = new Map<string, Expense>();
+      for (const pf of projectFilters) {
+        const rows = await fetchExpensesSnapshot({
+          ...baseEf,
+          project_filter: pf,
+        });
+        for (const r of rows) merged.set(r.id, r);
+      }
+
+      const mergedRows = Array.from(merged.values());
+      if (mergedRows.length === 0) {
+        showAppAlert(t('common.error'), t('common.noData'), 'error');
+        return;
+      }
+
+      const totalHT = mergedRows.reduce((s, r) => s + (r.amount_ht || 0), 0);
+      const totalTTC = mergedRows.reduce((s, r) => s + (r.amount_ttc || 0), 0);
+      const examples = mergedRows
+        .slice(0, 5)
+        .map(
+          r =>
+            `${formatDate(r.receipt_date)} · ${r.supplier ?? '—'} · ${formatCurrency(
+              r.amount_ttc || 0
+            )}`
+        )
+        .join('\n');
+
+      const ok = await showAppConfirm(
+        t('admin.exportPreviewTitle'),
+        `(${mergedRows.length} note(s))\nTotal HT: ${formatCurrency(totalHT)}\nTotal TTC: ${formatCurrency(
+          totalTTC
+        )}\n\n${examples}${mergedRows.length > 5 ? `\n…` : ''}`,
+        t('common.cancel'),
+        t('admin.exportConfirm')
+      );
+
+      if (!ok) {
+        return;
+      }
+
+      await exportToExcel(mergedRows);
       showAppAlert(t('common.success'), t('admin.exportSuccess'), 'success');
       closeExportModal();
     } catch {
@@ -316,7 +407,15 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
     } finally {
       setExporting(false);
     }
-  }, [buildExportFilters, fetchExpensesSnapshot, t, closeExportModal]);
+  }, [
+    buildExportFilters,
+    fetchExpensesSnapshot,
+    t,
+    closeExportModal,
+    exportAllProjects,
+    exportProjectIds,
+    exportIncludeDaily,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1000,7 +1099,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                   >
                     <Text className="text-primary-600 font-semibold text-base">{t('common.back')}</Text>
                   </TouchableOpacity>
-                  <Text className="text-xl font-bold text-gray-900">{t('admin.selectDateRange')}</Text>
+                  <Text className="text-xl font-bold text-gray-900">{t('admin.selectCreatedYear')}</Text>
                 </View>
                 <ScrollView
                   keyboardShouldPersistTaps="handled"
@@ -1008,7 +1107,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                 >
                   <View className="px-5 pt-3">
                     <Text className="text-gray-500 text-sm mb-4 leading-5">
-                      {t('admin.dateRangeHint')}
+                      {t('admin.createdYearHint')}
                     </Text>
                     <Calendar
                       firstDay={1}
@@ -1197,6 +1296,141 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                 </View>
               </View>
             ) : null}
+            {exportProjectPickerOpen && exportSheetView === 'main' ? (
+              <View
+                className="justify-end"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  zIndex: 100,
+                }}
+                pointerEvents="box-none"
+              >
+                <Pressable
+                  className="flex-1 bg-black/40"
+                  onPress={() => setExportProjectPickerOpen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                />
+                <View className="bg-white rounded-t-[24px] border-t border-gray-200 px-4 pt-4 pb-5 shadow-lg">
+                  <Text className="text-ink font-bold text-base mb-3">{t('admin.filterByProject')}</Text>
+
+                  <TextInput
+                    className="bg-surface border border-gray-100 rounded-2xl px-4 py-3 text-base mb-4"
+                    value={exportProjectSearch}
+                    onChangeText={setExportProjectSearch}
+                    placeholder={t('common.search')}
+                  />
+
+                  <TouchableOpacity
+                    className={`px-4 py-3 rounded-xl border justify-center mb-3 ${
+                      exportAllProjects
+                        ? 'bg-primary-600 border-primary-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                    onPress={() => {
+                      setExportAllProjects(true);
+                      setExportProjectIds([]);
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      className={`text-sm font-medium ${
+                        exportAllProjects ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {t('common.all')}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className={`flex-row items-center justify-between px-4 py-3 rounded-xl border mb-3 ${
+                      !exportAllProjects && exportIncludeDaily
+                        ? 'border-primary-300 bg-primary-50/50'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                    onPress={() => {
+                      setExportAllProjects(false);
+                      setExportIncludeDaily(prev => !prev);
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text className="text-sm font-medium text-gray-700">{t('expense.projectDaily')}</Text>
+                    <Ionicons
+                      name={
+                        !exportAllProjects && exportIncludeDaily
+                          ? 'checkmark-circle'
+                          : 'ellipse-outline'
+                      }
+                      size={22}
+                      color={
+                        !exportAllProjects && exportIncludeDaily ? theme.brandPrimary : theme.inkMuted
+                      }
+                    />
+                  </TouchableOpacity>
+
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    style={{ maxHeight: 280 }}
+                    nestedScrollEnabled
+                  >
+                    {(() => {
+                      const q = exportProjectSearch.trim().toLowerCase();
+                      const filtered = crmProjects.filter(pr => {
+                        if (!q) return true;
+                        return pr.name.toLowerCase().includes(q);
+                      });
+
+                      if (crmProjectsLoading) {
+                        return <Text className="text-gray-500 text-sm py-4">{t('common.loading')}</Text>;
+                      }
+
+                      if (filtered.length === 0) {
+                        return <Text className="text-gray-500 text-sm py-4">{t('common.noData')}</Text>;
+                      }
+
+                      return filtered.map(pr => {
+                        const selected = !exportAllProjects && exportProjectIds.includes(pr.id);
+                        return (
+                          <TouchableOpacity
+                            key={pr.id}
+                            className="py-3.5 border-b border-gray-100 active:bg-gray-50"
+                            onPress={() => {
+                              setExportAllProjects(false);
+                              setExportProjectIds(prev =>
+                                prev.includes(pr.id)
+                                  ? prev.filter(x => x !== pr.id)
+                                  : [...prev, pr.id]
+                              );
+                            }}
+                            accessibilityRole="button"
+                          >
+                            <View className="flex-row items-center justify-between">
+                              <Text
+                                className={`text-base ${
+                                  selected ? 'font-bold text-gray-900' : 'font-medium text-gray-700'
+                                }`}
+                                numberOfLines={1}
+                              >
+                                {pr.name}
+                              </Text>
+                              <Ionicons
+                                name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                                size={22}
+                                color={selected ? theme.brandPrimary : theme.inkMuted}
+                              />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      });
+                    })()}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -1287,6 +1521,61 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                   </TouchableOpacity>
                 </View>
 
+                <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByProject')}</Text>
+                <View className="flex-row items-stretch gap-2 mb-4">
+                  <TouchableOpacity
+                    className={`px-4 py-3 rounded-xl border justify-center ${
+                      exportAllProjects
+                        ? 'bg-primary-600 border-primary-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                    onPress={() => {
+                      setExportAllProjects(true);
+                      setExportProjectIds([]);
+                    }}
+                  >
+                    <Text
+                      className={`text-sm font-medium ${
+                        exportAllProjects ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {t('common.all')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`flex-1 min-w-0 flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                      !exportAllProjects
+                        ? 'border-primary-300 bg-primary-50/50'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                    onPress={() => {
+                      setExportEmployeePickerOpen(false);
+                      setExportProjectPickerOpen(false);
+                      setExportSheetView('projects');
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin.selectProjectPlaceholder')}
+                  >
+                    <Text
+                      className={`text-sm font-medium flex-1 pr-2 ${
+                        !exportAllProjects ? 'text-gray-900' : 'text-gray-400'
+                      }`}
+                      numberOfLines={1}
+                    >
+                      {!exportAllProjects && exportProjectIds.length > 0
+                        ? `${crmProjects.find(pr => pr.id === exportProjectIds[0])?.name ?? exportProjectIds[0]}${
+                            exportProjectIds.length > 1
+                              ? ` +${exportProjectIds.length - 1}`
+                              : ''
+                          }`
+                        : !exportAllProjects && exportIncludeDaily
+                          ? t('expense.projectDaily')
+                          : t('admin.selectProjectPlaceholder')}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={theme.inkMuted} />
+                  </TouchableOpacity>
+                </View>
+
                 <Text className="text-gray-700 font-medium mb-2">{t('admin.filterByDate')}</Text>
                 <TouchableOpacity
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 mb-2 active:opacity-80"
@@ -1320,6 +1609,132 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                   </TouchableOpacity>
                 </View>
               </ScrollView>
+            ) : exportSheetView === 'projects' ? (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{
+                  paddingHorizontal: 24,
+                  paddingTop: 28,
+                  paddingBottom: 40,
+                  gap: 12,
+                }}
+              >
+                <Text className="text-xl font-bold text-gray-900 mb-2">
+                  {t('admin.filterByProject')}
+                </Text>
+                <Text className="text-gray-500 text-sm mb-2 leading-5">
+                  {t('admin.selectProjectPlaceholder')}
+                </Text>
+
+                <TextInput
+                  className="bg-surface border border-gray-100 rounded-2xl px-4 py-3 text-base"
+                  value={exportProjectSearch}
+                  onChangeText={setExportProjectSearch}
+                  placeholder={t('common.search')}
+                />
+
+                <TouchableOpacity
+                  className={`px-4 py-3 rounded-xl border justify-center ${
+                    exportAllProjects ? 'bg-primary-600 border-primary-600' : 'bg-gray-50 border-gray-200'
+                  }`}
+                  onPress={() => {
+                    setExportAllProjects(true);
+                    setExportProjectIds([]);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.all')}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      exportAllProjects ? 'text-white' : 'text-gray-700'
+                    }`}
+                  >
+                    {t('common.all')}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className={`flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                    !exportAllProjects && exportIncludeDaily
+                      ? 'border-primary-300 bg-primary-50/50'
+                      : 'border-gray-200 bg-gray-50'
+                  }`}
+                  onPress={() => {
+                    setExportAllProjects(false);
+                    setExportIncludeDaily(prev => !prev);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text className="text-sm font-medium text-gray-700">
+                    {t('expense.projectDaily')}
+                  </Text>
+                  <Ionicons
+                    name={!exportAllProjects && exportIncludeDaily ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={
+                      !exportAllProjects && exportIncludeDaily ? theme.brandPrimary : theme.inkMuted
+                    }
+                  />
+                </TouchableOpacity>
+
+                <ScrollView style={{ maxHeight: 320 }}>
+                  {crmProjects
+                    .filter(pr => {
+                      const q = exportProjectSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return pr.name.toLowerCase().includes(q);
+                    })
+                    .map(pr => {
+                      const selected = !exportAllProjects && exportProjectIds.includes(pr.id);
+                      return (
+                        <TouchableOpacity
+                          key={pr.id}
+                          className={`flex-row items-center justify-between px-4 py-3 rounded-xl border mb-2 ${
+                            selected
+                              ? 'border-primary-300 bg-primary-50/50'
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
+                          onPress={() => {
+                            setExportAllProjects(false);
+                            setExportProjectIds(prev =>
+                              prev.includes(pr.id)
+                                ? prev.filter(x => x !== pr.id)
+                                : [...prev, pr.id]
+                            );
+                          }}
+                          accessibilityRole="button"
+                        >
+                          <Text
+                            className={`text-sm font-medium ${selected ? 'text-gray-900' : 'text-gray-700'}`}
+                            numberOfLines={1}
+                          >
+                            {pr.name}
+                          </Text>
+                          <Ionicons
+                            name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={22}
+                            color={selected ? theme.brandPrimary : theme.inkMuted}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                </ScrollView>
+
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    className="flex-1 border border-gray-200 rounded-full py-3 items-center bg-surface"
+                    onPress={closeExportModal}
+                  >
+                    <Text className="text-gray-800 font-semibold">{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="flex-1 bg-primary-600 rounded-full py-3.5 items-center"
+                    onPress={() => setExportSheetView('main')}
+                  >
+                    <Text className="text-white font-bold">{t('common.confirm')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             ) : (
               <>
                 <View className="px-5 pt-5 pb-3 border-b border-gray-100">
@@ -1344,6 +1759,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                   </TouchableOpacity>
                   <Text className="text-xl font-bold text-gray-900">{t('admin.selectDateRange')}</Text>
                 </View>
+
                 <ScrollView
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ paddingBottom: 16 }}
@@ -1352,6 +1768,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                     <Text className="text-gray-500 text-sm mb-4 leading-5">
                       {t('admin.dateRangeHint')}
                     </Text>
+
                     <Calendar
                       firstDay={1}
                       enableSwipeMonths
@@ -1370,6 +1787,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                     />
                   </View>
                 </ScrollView>
+
                 <View className="px-5 pb-8 pt-3 border-t border-gray-100 gap-3">
                   <TouchableOpacity
                     className="border border-gray-200 rounded-full py-3 items-center bg-surface"
@@ -1379,6 +1797,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                       {t('admin.clearDateRange')}
                     </Text>
                   </TouchableOpacity>
+
                   <View className="flex-row gap-3">
                     <TouchableOpacity
                       className="flex-1 border border-gray-200 rounded-full py-3.5 items-center bg-surface"
@@ -1397,6 +1816,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation, profile }) =
                     >
                       <Text className="text-gray-800 font-semibold text-sm">{t('common.cancel')}</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
                       className="flex-1 bg-primary-600 rounded-full py-3.5 items-center"
                       onPress={confirmExportDateRange}

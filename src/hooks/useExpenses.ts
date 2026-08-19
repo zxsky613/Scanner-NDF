@@ -57,10 +57,14 @@ export const useExpenses = (userId?: string, isAdmin = false) => {
           query = query.eq('user_id', filters.employee_id);
         }
         if (filters?.date_from) {
-          query = query.gte('receipt_date', filters.date_from);
+          const dateField =
+            filters?.date_basis === 'created_at' ? 'created_at' : 'receipt_date';
+          query = query.gte(dateField, filters.date_from);
         }
         if (filters?.date_to) {
-          query = query.lte('receipt_date', filters.date_to);
+          const dateField =
+            filters?.date_basis === 'created_at' ? 'created_at' : 'receipt_date';
+          query = query.lte(dateField, filters.date_to);
         }
         const supplierQ = filters?.supplier_search?.trim();
         if (supplierQ) {

@@ -152,6 +152,12 @@ export interface ExpenseFilters {
   employee_id?: string;
   date_from?: string;
   date_to?: string;
+  /**
+   * Choisit quelle colonne date_from/date_to filtrent côté API.
+   * - default: receipt_date (comportement historique)
+   * - created_at: utile pour l'export “par année” basée sur la création
+   */
+  date_basis?: 'receipt_date' | 'created_at';
   /** Filtre côté API : fournisseur contient cette chaîne (insensible à la casse). */
   supplier_search?: string;
   project_filter?: ExpenseProjectFilter;
